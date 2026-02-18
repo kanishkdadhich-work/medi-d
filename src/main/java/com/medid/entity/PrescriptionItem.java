@@ -25,22 +25,13 @@ public class PrescriptionItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * ManyToOne relationship with Prescription
-     * Many prescription items can belong to one prescription
-     * Cascade: PERSIST and MERGE to handle items with prescription operations
-     * Orphan deletion: handled at prescription level
-     */
+
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "prescription_id", nullable = false, 
                 foreignKey = @ForeignKey(name = "fk_prescriptionitem_prescription"))
     private Prescription prescription;
 
-    /**
-     * ManyToOne relationship with Medicine
-     * Many prescription items can reference the same medicine
-     * Cascade: PERSIST and MERGE (DO NOT delete medicine if item is deleted)
-     */
+
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "medicine_id", nullable = false, 
                 foreignKey = @ForeignKey(name = "fk_prescriptionitem_medicine"))

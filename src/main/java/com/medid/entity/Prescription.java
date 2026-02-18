@@ -40,7 +40,7 @@ public class Prescription {
     private String diagnosis;
 
     @Column(nullable = false, length = 50)
-    private String status; // e.g., "PENDING", "DISPENSED", "COMPLETED"
+    private String status;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

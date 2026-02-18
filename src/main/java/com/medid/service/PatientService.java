@@ -9,10 +9,16 @@ import com.medid.repository.PatientRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Implementation of patient service.
+ * Handles all business logic for patient-related operations.
+ */
 @Slf4j
 @Service
-public class PatientService {
+@Transactional
+public class PatientService implements IPatientService {
 
     @Autowired
     private PatientRepository patientRepository;
