@@ -82,10 +82,9 @@ public interface IAppointmentService {
      */
     List<AppointmentResponseDTO> getAppointmentsByStatus(String status);
 
-    /**
-     * Delete an appointment by ID
-     * @param id Appointment ID
-     * @throws com.medid.exception.ResourceNotFoundException if appointment not found
-     */
     void deleteAppointment(Long id);
+
+    void markSlotUnavailable(Long doctorId, LocalDateTime slotTimestamp);
+
+    boolean isSlotAvailable(Long doctorId, LocalDateTime slotTimestamp);
 }

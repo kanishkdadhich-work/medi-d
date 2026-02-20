@@ -13,10 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * REST Controller for medicine management endpoints.
- * Provides API endpoints for medicine inventory operations.
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/medicines")
@@ -24,6 +20,11 @@ public class MedicineController {
 
     @Autowired
     private IMedicineService medicineService;
+
+    @GetMapping
+    public ResponseEntity<List<MedicineResponseDTO>> getAllMedicines() {
+        return ResponseEntity.ok(medicineService.getAllMedicines());
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<MedicineResponseDTO> getMedicineById(@PathVariable Long id) {

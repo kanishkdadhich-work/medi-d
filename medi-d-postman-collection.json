@@ -1,0 +1,1164 @@
+{
+  "info": {
+    "name": "Medi-D Healthcare API",
+    "description": "Complete API testing collection for Medi-D Healthcare Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Health Check",
+      "item": [
+        {
+          "name": "Check API Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is running message\", function () {",
+                  "    pm.expect(pm.response.text()).to.include(\"Medi-D System is up and running\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Check if the Medi-D API is up and running"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Patient Management",
+      "item": [
+        {
+          "name": "Create Patient - Valid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has ID\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('patient_id', jsonData.id);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has name\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"John Doe\", \"contact\": \"+1-555-0100\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "Create a new patient record"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Patient - Invalid (Empty Name)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Error response has validation errors\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('validationErrors');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"\", \"contact\": \"+1-555-0100\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "Try to create patient with empty name (should fail)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Patient - Invalid Contact",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Jane Smith\", \"contact\": \"invalid\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "Try to create patient with invalid phone format"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Patient by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has patient data\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/patients/{{patient_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients",
+                "{{patient_id}}"
+              ]
+            },
+            "description": "Retrieve patient details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Patient - Not Found (Invalid ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/patients/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients",
+                "999999"
+              ]
+            },
+            "description": "Try to get non-existent patient"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Medicine Management",
+      "item": [
+        {
+          "name": "Create Medicine - Valid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has medicine_id\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('medicine_id');",
+                  "    pm.environment.set('medicine_id', jsonData.medicine_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Aspirin\", \"stock\": 100, \"expiryDate\": \"2025-12-31\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/medicines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines"
+              ]
+            },
+            "description": "Create a new medicine record"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Medicine - Negative Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Aspirin\", \"stock\": -10, \"expiryDate\": \"2025-12-31\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/medicines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines"
+              ]
+            },
+            "description": "Try to create medicine with negative stock"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Medicine - Past Expiry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Aspirin\", \"stock\": 100, \"expiryDate\": \"2020-12-31\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/medicines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines"
+              ]
+            },
+            "description": "Try to create medicine with past expiry date"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Low Stock Medicine",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has low stock\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.stock).to.be.below(50);",
+                  "    pm.environment.set('low_stock_medicine_id', jsonData.medicine_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Paracetamol\", \"stock\": 25, \"expiryDate\": \"2025-12-31\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/medicines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines"
+              ]
+            },
+            "description": "Create a medicine with low stock"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Medicine by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has medicine data\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('medicine_id');",
+                  "    pm.expect(jsonData).to.have.property('medicine_name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/medicines/{{medicine_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "{{medicine_id}}"
+              ]
+            },
+            "description": "Get medicine details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Search Medicine by Name",
+          "event": [
+            {
+              "listen": "test",
+              "script": [
+                "pm.test(\"Status code is 200\", function () {",
+                "    pm.response.to.have.status(200);",
+                "});",
+                "",
+                "pm.test(\"Response contains medicine\", function () {",
+                "    let jsonData = pm.response.json();",
+                "    pm.expect(jsonData).to.have.property('medicine_name');",
+                "});"
+              ],
+              "type": "text/javascript"
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/medicines/search/by-name?name=Aspirin",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "search",
+                "by-name"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "Aspirin"
+                }
+              ]
+            },
+            "description": "Search for medicine by name"
+          },
+          "response": []
+        },
+        {
+          "name": "List Low Stock Medicines",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/medicines/low-stock?minimumStock=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "low-stock"
+              ],
+              "query": [
+                {
+                  "key": "minimumStock",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "List all medicines with stock below threshold"
+          },
+          "response": []
+        },
+        {
+          "name": "List Expiring Medicines",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/medicines/expiring-before?expiryDate=2024-06-30",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "expiring-before"
+              ],
+              "query": [
+                {
+                  "key": "expiryDate",
+                  "value": "2024-06-30"
+                }
+              ]
+            },
+            "description": "List medicines expiring before a given date"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Medicine",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Stock has been updated\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.stock).to.equal(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Aspirin\", \"stock\": 200, \"expiryDate\": \"2025-12-31\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/medicines/{{medicine_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "{{medicine_id}}"
+              ]
+            },
+            "description": "Update medicine details"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Medicine",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/medicines/{{medicine_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "{{medicine_id}}"
+              ]
+            },
+            "description": "Delete a medicine record"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Deleted Medicine (Should Fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/medicines/{{medicine_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "{{medicine_id}}"
+              ]
+            },
+            "description": "Try to get a deleted medicine (should fail)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Appointment Management",
+      "item": [
+        {
+          "name": "Create Appointment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has appointment_id\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('appointment_id');",
+                  "    pm.environment.set('appointment_id', jsonData.appointment_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"patientId\": {{patient_id}}, \"doctorId\": 10, \"slotTimestamp\": \"2026-03-15T10:00:00\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/appointments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "Create a new appointment"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Appointment - Past Time",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"patientId\": {{patient_id}}, \"doctorId\": 10, \"slotTimestamp\": \"2020-03-15T10:00:00\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/appointments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "Try to create appointment in the past (should fail)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Appointment by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has appointment data\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('appointment_id');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/appointments/{{appointment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointment_id}}"
+              ]
+            },
+            "description": "Get appointment details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Patient Appointments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/appointments/patient/{{patient_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "patient",
+                "{{patient_id}}"
+              ]
+            },
+            "description": "Get all appointments for a patient"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Doctor Appointments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/appointments/doctor/10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "doctor",
+                "10"
+              ]
+            },
+            "description": "Get all appointments for a doctor"
+          },
+          "response": []
+        },
+        {
+          "name": "Check Slot Availability - Available",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Slot is available\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.available).to.equal(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/appointments/check-slot?doctorId=10&slotTimestamp=2026-04-15T14:00:00",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "check-slot"
+              ],
+              "query": [
+                {
+                  "key": "doctorId",
+                  "value": "10"
+                },
+                {
+                  "key": "slotTimestamp",
+                  "value": "2026-04-15T14:00:00"
+                }
+              ]
+            },
+            "description": "Check if a slot is available for a doctor"
+          },
+          "response": []
+        },
+        {
+          "name": "Check Slot Availability - Occupied",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Slot is occupied\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.available).to.equal(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/appointments/check-slot?doctorId=10&slotTimestamp=2026-03-15T10:00:00",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "check-slot"
+              ],
+              "query": [
+                {
+                  "key": "doctorId",
+                  "value": "10"
+                },
+                {
+                  "key": "slotTimestamp",
+                  "value": "2026-03-15T10:00:00"
+                }
+              ]
+            },
+            "description": "Check slot that should be occupied"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Prescription Management",
+      "item": [
+        {
+          "name": "Create Prescription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has prescription_id\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('prescription_id');",
+                  "    pm.environment.set('prescription_id', jsonData.prescription_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"patientId\": {{patient_id}}, \"doctorId\": 10, \"prescriptionDate\": \"2026-03-15\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/prescriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "prescriptions"
+              ]
+            },
+            "description": "Create a new prescription"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Prescription by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has prescription data\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('prescription_id');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prescriptions/{{prescription_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "prescriptions",
+                "{{prescription_id}}"
+              ]
+            },
+            "description": "Get prescription details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Patient Prescriptions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/prescriptions/patient/{{patient_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "prescriptions",
+                "patient",
+                "{{patient_id}}"
+              ]
+            },
+            "description": "Get all prescriptions for a patient"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api",
+      "type": "string"
+    },
+    {
+      "key": "patient_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "medicine_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "appointment_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "prescription_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}

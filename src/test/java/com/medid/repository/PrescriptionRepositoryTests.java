@@ -17,7 +17,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 @DisplayName("Prescription Repository Tests")
 class PrescriptionRepositoryTests {
 
@@ -104,11 +104,19 @@ class PrescriptionRepositoryTests {
     @Test
     @DisplayName("Should save prescription successfully")
     void testSavePrescription() {
+        // create a different appointment so we don't violate the unique constraint
+        Appointment another = new Appointment();
+        another.setPatient(testPatient);
+        another.setDoctorId(2L);
+        another.setSlotTimestamp(LocalDateTime.now().plusDays(2));
+        another.setStatus("BOOKED");
+        another = appointmentRepository.save(another);
+
         Prescription newPrescription = new Prescription();
-        newPrescription.setAppointment(testAppointment);
+        newPrescription.setAppointment(another);
         newPrescription.setDiagnosis("New Diagnosis");
         newPrescription.setStatus("PENDING");
-        
+
         Prescription saved = prescriptionRepository.save(newPrescription);
         
         assertNotNull(saved.getId());

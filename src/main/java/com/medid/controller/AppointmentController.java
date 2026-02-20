@@ -1,6 +1,7 @@
 package com.medid.controller;
 
 import com.medid.dto.AppointmentRequestDTO;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.medid.dto.AppointmentResponseDTO;
 import com.medid.service.IAppointmentService;
 import jakarta.validation.Valid;
@@ -13,10 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * REST Controller for appointment management endpoints.
- * Provides API endpoints for appointment scheduling and retrieval.
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/appointments")
@@ -47,6 +44,7 @@ public class AppointmentController {
     }
 
     @GetMapping("/patient/{patientId}")
+    @PreAuthorize("hasRole('DOCTOR') or hasRole('RECEPTIONIST')")
     public ResponseEntity<List<AppointmentResponseDTO>> getAppointmentsByPatient(@PathVariable Long patientId) {
         log.info("Fetching appointments for patient: {}", patientId);
         List<AppointmentResponseDTO> appointments = appointmentService.getAppointmentsByPatient(patientId);
@@ -77,9 +75,21 @@ public class AppointmentController {
 
     @GetMapping("/check-slot")
     public ResponseEntity<Boolean> isSlotBooked(@RequestParam Long doctorId, @RequestParam LocalDateTime slotTime) {
-        log.info("Checking if slot is booked for doctor {} at {}", doctorId, slotTime);
         boolean isBooked = appointmentService.isSlotBooked(doctorId, slotTime);
         return ResponseEntity.ok(isBooked);
+    }
+
+    @GetMapping("/check-available")
+    public ResponseEntity<Boolean> isSlotAvailable(@RequestParam Long doctorId, @RequestParam LocalDateTime slotTime) {
+        boolean available = appointmentService.isSlotAvailable(doctorId, slotTime);
+        return ResponseEntity.ok(available);
+    }
+
+    @PostMapping("/mark-unavailable")
+    @PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<Void> markSlotUnavailable(@RequestParam Long doctorId, @RequestParam LocalDateTime slotTime) {
+        appointmentService.markSlotUnavailable(doctorId, slotTime);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/by-status/{status}")

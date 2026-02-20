@@ -6,7 +6,9 @@ import com.medid.entity.Appointment;
 import com.medid.entity.Patient;
 import com.medid.exception.InvalidRequestException;
 import com.medid.exception.ResourceNotFoundException;
+import com.medid.entity.DoctorUnavailability;
 import com.medid.repository.AppointmentRepository;
+import com.medid.repository.DoctorUnavailabilityRepository;
 import com.medid.repository.PatientRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Implementation of appointment service.
- * Manages appointment scheduling and validation.
- */
 @Slf4j
 @Service
 @Transactional
@@ -27,9 +25,10 @@ public class AppointmentService implements IAppointmentService {
 
     @Autowired
     private AppointmentRepository appointmentRepository;
-
     @Autowired
     private PatientRepository patientRepository;
+    @Autowired
+    private DoctorUnavailabilityRepository doctorUnavailabilityRepository;
 
     @Override
     public AppointmentResponseDTO getAppointmentById(Long id) {
@@ -51,6 +50,11 @@ public class AppointmentService implements IAppointmentService {
         log.info("Creating new appointment for doctor: {}", appointmentRequestDTO.getDoctorId());
         try {
             validateAppointmentRequest(appointmentRequestDTO);
+            if ("BOOKED".equalsIgnoreCase(appointmentRequestDTO.getStatus())) {
+                if (!isSlotAvailable(appointmentRequestDTO.getDoctorId(), appointmentRequestDTO.getSlotTimestamp())) {
+                    throw new InvalidRequestException("Slot is not available for booking");
+                }
+            }
 
             Patient patient = patientRepository.findById(appointmentRequestDTO.getPatientId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -64,7 +68,7 @@ public class AppointmentService implements IAppointmentService {
 
             Appointment savedAppointment = appointmentRepository.save(appointment);
             log.info("Appointment created successfully with ID: {}", savedAppointment.getId());
-            
+
             return convertToResponse(savedAppointment);
         } catch (InvalidRequestException | ResourceNotFoundException ex) {
             log.warn("Error creating appointment: {}", ex.getMessage());
@@ -99,7 +103,7 @@ public class AppointmentService implements IAppointmentService {
 
             Appointment updatedAppointment = appointmentRepository.save(appointment);
             log.info("Appointment updated successfully with ID: {}", id);
-            
+
             return convertToResponse(updatedAppointment);
         } catch (InvalidRequestException | ResourceNotFoundException ex) {
             log.warn("Error updating appointment: {}", ex.getMessage());
@@ -194,6 +198,38 @@ public class AppointmentService implements IAppointmentService {
     }
 
     @Override
+    public void markSlotUnavailable(Long doctorId, LocalDateTime slotTimestamp) {
+        if (doctorId == null || doctorId <= 0) {
+            throw new InvalidRequestException("Doctor ID must be a positive number");
+        }
+        if (slotTimestamp == null) {
+            throw new InvalidRequestException("Slot timestamp is required");
+        }
+        if (slotTimestamp.isBefore(LocalDateTime.now())) {
+            throw new InvalidRequestException("Slot timestamp cannot be in the past");
+        }
+        if (appointmentRepository.existsByDoctorIdAndSlotTimestampAndStatus(doctorId, slotTimestamp, "BOOKED")) {
+            throw new InvalidRequestException("Cannot mark slot as unavailable - already booked");
+        }
+        if (doctorUnavailabilityRepository.existsByDoctorIdAndSlotTimestamp(doctorId, slotTimestamp)) {
+            throw new InvalidRequestException("Slot already marked unavailable");
+        }
+        DoctorUnavailability unavail = new DoctorUnavailability();
+        unavail.setDoctorId(doctorId);
+        unavail.setSlotTimestamp(slotTimestamp);
+        doctorUnavailabilityRepository.save(unavail);
+        log.info("Marked slot unavailable for doctor {} at {}", doctorId, slotTimestamp);
+    }
+
+    @Override
+    public boolean isSlotAvailable(Long doctorId, LocalDateTime slotTimestamp) {
+        if (appointmentRepository.existsByDoctorIdAndSlotTimestampAndStatus(doctorId, slotTimestamp, "BOOKED")) {
+            return false;
+        }
+        return !doctorUnavailabilityRepository.existsByDoctorIdAndSlotTimestamp(doctorId, slotTimestamp);
+    }
+
+    @Override
     public void deleteAppointment(Long id) {
         log.info("Deleting appointment with ID: {}", id);
         if (id == null || id <= 0) {
@@ -207,9 +243,6 @@ public class AppointmentService implements IAppointmentService {
         log.info("Appointment deleted successfully with ID: {}", id);
     }
 
-    /**
-     * Validate appointment request DTO
-     */
     private void validateAppointmentRequest(AppointmentRequestDTO appointmentRequestDTO) {
         if (appointmentRequestDTO == null) {
             throw new InvalidRequestException("Appointment request cannot be null");
@@ -236,9 +269,6 @@ public class AppointmentService implements IAppointmentService {
         }
     }
 
-    /**
-     * Convert Appointment entity to AppointmentResponseDTO
-     */
     private AppointmentResponseDTO convertToResponse(Appointment appointment) {
         return new AppointmentResponseDTO(
                 appointment.getId(),

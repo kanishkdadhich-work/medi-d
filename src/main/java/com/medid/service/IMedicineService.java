@@ -66,6 +66,8 @@ public interface IMedicineService {
      */
     List<MedicineResponseDTO> searchMedicines(String namePattern);
 
+    List<MedicineResponseDTO> getAllMedicines();
+
     /**
      * Delete a medicine by ID
      * @param id Medicine ID

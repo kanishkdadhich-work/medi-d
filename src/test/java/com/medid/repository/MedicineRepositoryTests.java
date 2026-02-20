@@ -15,7 +15,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 @DisplayName("Medicine Repository Tests")
 class MedicineRepositoryTests {
 
@@ -30,7 +30,7 @@ class MedicineRepositoryTests {
         testMedicine.setName("Aspirin");
         testMedicine.setStock(100);
         testMedicine.setExpiryDate(LocalDate.now().plusMonths(6));
-        medicineRepository.save(testMedicine);
+        testMedicine = medicineRepository.save(testMedicine);
     }
 
     @Test

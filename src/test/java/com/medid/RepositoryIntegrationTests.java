@@ -16,7 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 @DisplayName("Integration Tests - Complete Data Flow")
 class RepositoryIntegrationTests {
 
@@ -63,6 +63,7 @@ class RepositoryIntegrationTests {
         prescription.setAppointment(savedAppointment);
         prescription.setDiagnosis("Common Cold");
         prescription.setStatus("PENDING");
+        savedAppointment.setPrescription(prescription);
         Prescription savedPrescription = prescriptionRepository.save(prescription);
         
         assertNotNull(savedPrescription.getId());
@@ -121,7 +122,9 @@ class RepositoryIntegrationTests {
         assertTrue(patientPrescriptions.stream().anyMatch(p -> p.getId().equals(savedPrescription.getId())));
 
         // Step 9: Test cascading - delete appointment should cascade to prescription
-        appointmentRepository.delete(savedAppointment);
+        Appointment toDelete = appointmentRepository.findById(savedAppointment.getId()).orElseThrow();
+        prescriptionRepository.findByAppointmentId(savedAppointment.getId()).ifPresent(toDelete::setPrescription);
+        appointmentRepository.delete(toDelete);
         
         // Prescription should also be deleted due to cascade
         assertTrue(prescriptionRepository.findById(savedPrescription.getId()).isEmpty());
@@ -160,10 +163,11 @@ class RepositoryIntegrationTests {
         assertTrue(searched.stream().anyMatch(m -> m.getName().equals("Aspirin")));
 
         // Test AppointmentRepository methods
+        LocalDateTime slotTime = LocalDateTime.now().plusDays(1).withNano(0).withSecond(0);
         Appointment appt = new Appointment();
         appt.setPatient(patient);
         appt.setDoctorId(1L);
-        appt.setSlotTimestamp(LocalDateTime.now().plusDays(1));
+        appt.setSlotTimestamp(slotTime);
         appt.setStatus("BOOKED");
         final Appointment savedAppt = appointmentRepository.save(appt);
 
@@ -180,7 +184,8 @@ class RepositoryIntegrationTests {
         List<Appointment> bookedByDoctor = appointmentRepository.findByDoctorIdAndStatusOrderBySlotTimestampAsc(1L, "BOOKED");
         assertFalse(bookedByDoctor.isEmpty());
 
-        boolean slotBooked = appointmentRepository.existsByDoctorIdAndSlotTimestampAndStatus(1L, savedAppt.getSlotTimestamp(), "BOOKED");
+        Appointment refetched = appointmentRepository.findById(savedAppt.getId()).orElseThrow();
+        boolean slotBooked = appointmentRepository.existsByDoctorIdAndSlotTimestampAndStatus(1L, refetched.getSlotTimestamp(), "BOOKED");
         assertTrue(slotBooked);
 
         List<Appointment> byStatus = appointmentRepository.findByStatus("BOOKED");
@@ -191,6 +196,7 @@ class RepositoryIntegrationTests {
         presc.setAppointment(savedAppt);
         presc.setDiagnosis("Test");
         presc.setStatus("PENDING");
+        savedAppt.setPrescription(presc);
         final Prescription savedPresc = prescriptionRepository.save(presc);
 
         assertTrue(prescriptionRepository.findByAppointmentId(savedAppt.getId()).isPresent());
@@ -240,13 +246,16 @@ class RepositoryIntegrationTests {
         prescription.setAppointment(appointment);
         prescription.setDiagnosis("Cascade Test");
         prescription.setStatus("PENDING");
+        appointment.setPrescription(prescription);
         prescription = prescriptionRepository.save(prescription);
 
         Long appointmentId = appointment.getId();
         Long prescriptionId = prescription.getId();
 
-        // Delete appointment
-        appointmentRepository.deleteById(appointmentId);
+        // Delete appointment (load with prescription for cascade)
+        Appointment toDelete = appointmentRepository.findById(appointmentId).orElseThrow();
+        prescriptionRepository.findByAppointmentId(appointmentId).ifPresent(toDelete::setPrescription);
+        appointmentRepository.delete(toDelete);
 
         // Verify cascade delete
         assertFalse(appointmentRepository.findById(appointmentId).isPresent());

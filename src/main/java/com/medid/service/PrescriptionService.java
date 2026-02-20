@@ -3,10 +3,14 @@ package com.medid.service;
 import com.medid.dto.PrescriptionRequestDTO;
 import com.medid.dto.PrescriptionResponseDTO;
 import com.medid.entity.Appointment;
+import com.medid.entity.Medicine;
 import com.medid.entity.Prescription;
+import com.medid.entity.PrescriptionItem;
 import com.medid.exception.InvalidRequestException;
 import com.medid.exception.ResourceNotFoundException;
 import com.medid.repository.AppointmentRepository;
+import com.medid.repository.MedicineRepository;
+import com.medid.repository.PrescriptionItemRepository;
 import com.medid.repository.PrescriptionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * Implementation of prescription service.
- * Manages prescription creation and workflow.
- */
 @Slf4j
 @Service
 @Transactional
@@ -29,6 +29,12 @@ public class PrescriptionService implements IPrescriptionService {
 
     @Autowired
     private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private PrescriptionItemRepository prescriptionItemRepository;
+
+    @Autowired
+    private MedicineRepository medicineRepository;
 
     @Override
     public PrescriptionResponseDTO getPrescriptionById(Long id) {
@@ -73,11 +79,11 @@ public class PrescriptionService implements IPrescriptionService {
             Prescription prescription = new Prescription();
             prescription.setAppointment(appointment);
             prescription.setDiagnosis(prescriptionRequestDTO.getDiagnosis());
-            prescription.setStatus(prescriptionRequestDTO.getStatus());
+            prescription.setStatus(prescriptionRequestDTO.getStatus() != null ? prescriptionRequestDTO.getStatus() : "PENDING");
 
             Prescription savedPrescription = prescriptionRepository.save(prescription);
             log.info("Prescription created successfully with ID: {}", savedPrescription.getId());
-            
+
             return convertToResponse(savedPrescription);
         } catch (InvalidRequestException | ResourceNotFoundException ex) {
             log.warn("Error creating prescription: {}", ex.getMessage());
@@ -111,7 +117,7 @@ public class PrescriptionService implements IPrescriptionService {
 
             Prescription updatedPrescription = prescriptionRepository.save(prescription);
             log.info("Prescription updated successfully with ID: {}", id);
-            
+
             return convertToResponse(updatedPrescription);
         } catch (InvalidRequestException | ResourceNotFoundException ex) {
             log.warn("Error updating prescription: {}", ex.getMessage());
@@ -190,6 +196,44 @@ public class PrescriptionService implements IPrescriptionService {
         log.info("Prescription deleted successfully with ID: {}", id);
     }
 
+    @Override
+    public PrescriptionResponseDTO dispensePrescription(Long id) {
+        Prescription prescription = prescriptionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found with id: " + id));
+
+        List<PrescriptionItem> items = prescriptionItemRepository.findByPrescriptionIdOrderByIdAsc(id);
+        if (items == null || items.isEmpty()) {
+            throw new InvalidRequestException("No items to dispense for prescription id=" + id);
+        }
+
+        // Check stock availability
+        for (PrescriptionItem item : items) {
+            Medicine med = medicineRepository.findById(item.getMedicine().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Medicine not found with id: " + item.getMedicine().getId()));
+            int required = item.getQuantityRequired() != null ? item.getQuantityRequired() : 0;
+            int available = med.getStock() != null ? med.getStock() : 0;
+            if (available < required) {
+                log.warn("Insufficient stock for medicine {} needed={} available={}", med.getName(), required, available);
+                throw new InvalidRequestException("Insufficient stock for: " + med.getName());
+            }
+        }
+
+        // Deduct stock
+        for (PrescriptionItem item : items) {
+            Medicine med = medicineRepository.findById(item.getMedicine().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Medicine not found with id: " + item.getMedicine().getId()));
+            int required = item.getQuantityRequired() != null ? item.getQuantityRequired() : 0;
+            med.setStock(med.getStock() - required);
+            medicineRepository.save(med);
+            log.debug("Deducted {} from medicine id={} newStock={}", required, med.getId(), med.getStock());
+        }
+
+        prescription.setStatus("DISPENSED");
+        Prescription saved = prescriptionRepository.save(prescription);
+        log.info("Dispensed prescription id={}", saved.getId());
+        return convertToResponse(saved);
+    }
+
     /**
      * Validate prescription request DTO
      */
@@ -217,7 +261,7 @@ public class PrescriptionService implements IPrescriptionService {
     private PrescriptionResponseDTO convertToResponse(Prescription prescription) {
         return new PrescriptionResponseDTO(
                 prescription.getId(),
-                prescription.getAppointment().getId(),
+                prescription.getAppointment() != null ? prescription.getAppointment().getId() : null,
                 prescription.getDiagnosis(),
                 prescription.getStatus(),
                 prescription.getCreatedAt()

@@ -14,10 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * Implementation of medicine service.
- * Handles inventory management, stock tracking, and expiry monitoring.
- */
 @Slf4j
 @Service
 @Transactional
@@ -69,7 +65,7 @@ public class MedicineService implements IMedicineService {
 
             Medicine savedMedicine = medicineRepository.save(medicine);
             log.info("Medicine created successfully with ID: {}", savedMedicine.getId());
-            
+
             return convertToResponse(savedMedicine);
         } catch (InvalidRequestException ex) {
             log.warn("Invalid request for medicine creation: {}", ex.getMessage());
@@ -99,7 +95,7 @@ public class MedicineService implements IMedicineService {
 
             Medicine updatedMedicine = medicineRepository.save(medicine);
             log.info("Medicine updated successfully with ID: {}", id);
-            
+
             return convertToResponse(updatedMedicine);
         } catch (InvalidRequestException | ResourceNotFoundException ex) {
             log.warn("Error updating medicine: {}", ex.getMessage());
@@ -137,6 +133,14 @@ public class MedicineService implements IMedicineService {
     }
 
     @Override
+    public List<MedicineResponseDTO> getAllMedicines() {
+        return medicineRepository.findAll()
+                .stream()
+                .map(this::convertToResponse)
+                .toList();
+    }
+
+    @Override
     public List<MedicineResponseDTO> searchMedicines(String namePattern) {
         log.debug("Searching medicines with pattern: {}", namePattern);
         if (namePattern == null || namePattern.trim().isEmpty()) {
@@ -163,9 +167,6 @@ public class MedicineService implements IMedicineService {
         log.info("Medicine deleted successfully with ID: {}", id);
     }
 
-    /**
-     * Validate medicine request DTO
-     */
     private void validateMedicineRequest(MedicineRequestDTO medicineRequestDTO) {
         if (medicineRequestDTO == null) {
             throw new InvalidRequestException("Medicine request cannot be null");
@@ -188,9 +189,6 @@ public class MedicineService implements IMedicineService {
         }
     }
 
-    /**
-     * Convert Medicine entity to MedicineResponseDTO
-     */
     private MedicineResponseDTO convertToResponse(Medicine medicine) {
         return new MedicineResponseDTO(
                 medicine.getId(),

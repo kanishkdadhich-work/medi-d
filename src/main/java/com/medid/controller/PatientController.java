@@ -10,10 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * REST Controller for patient management endpoints.
- * Provides API endpoints for patient operations.
- */
 @Slf4j
 @RestController
 @RequestMapping("/api")

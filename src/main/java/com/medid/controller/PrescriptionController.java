@@ -4,22 +4,23 @@ import com.medid.dto.PrescriptionRequestDTO;
 import com.medid.dto.PrescriptionResponseDTO;
 import com.medid.service.IPrescriptionService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-
 @Slf4j
 @RestController
 @RequestMapping("/api/prescriptions")
+@RequiredArgsConstructor
+@PreAuthorize("hasRole('DOCTOR') or hasRole('RECEPTIONIST')")
 public class PrescriptionController {
 
-    @Autowired
-    private IPrescriptionService prescriptionService;
+    private final IPrescriptionService prescriptionService;
 
     @GetMapping("/{id}")
     public ResponseEntity<PrescriptionResponseDTO> getPrescriptionById(@PathVariable Long id) {
@@ -89,5 +90,12 @@ public class PrescriptionController {
         log.info("Deleting prescription with ID: {}", id);
         prescriptionService.deletePrescription(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/dispense")
+    public ResponseEntity<PrescriptionResponseDTO> dispensePrescription(@PathVariable("id") Long id) {
+        log.info("Attempting to dispense prescription with ID: {}", id);
+        PrescriptionResponseDTO updated = prescriptionService.dispensePrescription(id);
+        return ResponseEntity.ok(updated);
     }
 }

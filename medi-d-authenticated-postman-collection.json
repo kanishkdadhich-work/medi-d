@@ -1,0 +1,988 @@
+{
+  "info": {
+    "name": "Medi-D with Role-Based Authentication",
+    "description": "Complete Medi-D API collection with JWT authentication and role-based access control",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "🔐 AUTHENTICATION",
+      "item": [
+        {
+          "name": "1️⃣ Login as Receptionist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('token');",
+                  "    pm.environment.set('receptionist_token', jsonData.token);",
+                  "    console.log('✓ Receptionist token saved to environment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"receptionist\", \"password\": \"receptpass\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login as Receptionist and get JWT token. Token is automatically saved to environment variable 'receptionist_token'"
+          },
+          "response": []
+        },
+        {
+          "name": "2️⃣ Login as Doctor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('token');",
+                  "    pm.environment.set('doctor_token', jsonData.token);",
+                  "    console.log('✓ Doctor token saved to environment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"doctor\", \"password\": \"doctorpass\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login as Doctor and get JWT token. Token is automatically saved to environment variable 'doctor_token'"
+          },
+          "response": []
+        },
+        {
+          "name": "3️⃣ Login as Pharmacist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has token\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('token');",
+                  "    pm.environment.set('pharmacist_token', jsonData.token);",
+                  "    console.log('✓ Pharmacist token saved to environment');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"pharmacist\", \"password\": \"pharmacistpass\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login as Pharmacist and get JWT token. Token is automatically saved to environment variable 'pharmacist_token'"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👨‍💼 RECEPTIONIST TASKS",
+      "item": [
+        {
+          "name": "Register New Patient",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has patient ID\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.environment.set('patient_id', jsonData.id);",
+                  "    console.log('✓ Patient ID ' + jsonData.id + ' saved');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"John Doe\", \"contact\": \"+1-555-0100\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "Register a new patient. Requires RECEPTIONIST role. Token is obtained from login."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Patient Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has patient data\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/patients/{{patient_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients",
+                "{{patient_id}}"
+              ]
+            },
+            "description": "Get patient details by ID. Requires RECEPTIONIST role (or higher)."
+          },
+          "response": []
+        },
+        {
+          "name": "Book Appointment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has appointment ID\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('appointment_id');",
+                  "    pm.environment.set('appointment_id', jsonData.appointment_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"patientId\": {{patient_id}}, \"doctorId\": 10, \"slotTimestamp\": \"2026-03-15T10:00:00\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/appointments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "Book an appointment. Requires RECEPTIONIST role. Prevents double-booking."
+          },
+          "response": []
+        },
+        {
+          "name": "View Patient Appointments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/appointments/patient/{{patient_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "patient",
+                "{{patient_id}}"
+              ]
+            },
+            "description": "View all appointments for a specific patient. Requires RECEPTIONIST or DOCTOR role."
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test: Pharmacist Can't Register Patient",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test(\"Error message indicates forbidden access\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error).to.include('Forbidden');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Jane Smith\", \"contact\": \"+1-555-0200\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/patients",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "EXPECTED TO FAIL: Pharmacist should NOT be able to register patients. Should return 403 Forbidden."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👨‍⚕️ DOCTOR TASKS",
+      "item": [
+        {
+          "name": "View My Appointments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/appointments/doctor/10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "doctor",
+                "10"
+              ]
+            },
+            "description": "View all appointments for this doctor. Requires DOCTOR role."
+          },
+          "response": []
+        },
+        {
+          "name": "View Patient History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has patient data\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/patients/{{patient_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients",
+                "{{patient_id}}"
+              ]
+            },
+            "description": "Access patient history. Requires DOCTOR role."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Prescription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has prescription ID\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('prescription_id');",
+                  "    pm.environment.set('prescription_id', jsonData.prescription_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"patientId\": {{patient_id}}, \"doctorId\": 10, \"prescriptionDate\": \"2026-03-15\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/prescriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "prescriptions"
+              ]
+            },
+            "description": "Create a prescription for a patient. Only DOCTOR can issue prescriptions."
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test: Receptionist Can't Dispense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pharmacy/prescriptions/{{prescription_id}}/dispense",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pharmacy",
+                "prescriptions",
+                "{{prescription_id}}",
+                "dispense"
+              ]
+            },
+            "description": "EXPECTED TO FAIL: Receptionist should NOT be able to dispense. Only PHARMACIST can dispense."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💊 PHARMACIST TASKS",
+      "item": [
+        {
+          "name": "View Pending Prescriptions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is array of pending prescriptions\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pharmacy/prescriptions/pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pharmacy",
+                "prescriptions",
+                "pending"
+              ]
+            },
+            "description": "View pending prescriptions. IMPORTANT: Pharmacist sees medicines only, NOT patient diagnosis (privacy protected). Requires PHARMACIST role."
+          },
+          "response": []
+        },
+        {
+          "name": "Check Medicine Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has stock information\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('stock');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/medicines/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "1"
+              ]
+            },
+            "description": "Check medicine stock before dispensing. Requires PHARMACIST role."
+          },
+          "response": []
+        },
+        {
+          "name": "View Low Stock Medicines",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is array\", function () {",
+                  "    let jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/medicines/low-stock?minimumStock=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "medicines",
+                "low-stock"
+              ],
+              "query": [
+                {
+                  "key": "minimumStock",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get alert for medicines with low stock. Requires PHARMACIST role."
+          },
+          "response": []
+        },
+        {
+          "name": "Dispense Prescription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 400\", function () {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"Prescription dispensed successfully\", function () {",
+                  "        pm.expect(pm.response.text()).to.include('dispensed');",
+                  "    });",
+                  "} else {",
+                  "    pm.test(\"Dispensing failed due to missing stock (All-or-Nothing)\", function () {",
+                  "        let jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.error).to.include('stock');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pharmacy/prescriptions/{{prescription_id}}/dispense",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pharmacy",
+                "prescriptions",
+                "{{prescription_id}}",
+                "dispense"
+              ]
+            },
+            "description": "Dispense prescription. CRITICAL: If any medicine is out of stock, entire operation is rolled back (All-or-Nothing). Requires PHARMACIST role."
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test: Doctor Can't See Pending",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pharmacy/prescriptions/pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pharmacy",
+                "prescriptions",
+                "pending"
+              ]
+            },
+            "description": "EXPECTED TO FAIL: Doctor should NOT be able to see pending prescriptions queue. Only PHARMACIST can access."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔒 SECURITY TESTS",
+      "item": [
+        {
+          "name": "❌ Test: No Token (Should Fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 or 403 Unauthorized\", function () {",
+                  "    pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/patients/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "patients",
+                "1"
+              ]
+            },
+            "description": "EXPECTED TO FAIL: Accessing protected endpoint without Authorization header should return 401 or 403."
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test: Invalid Credentials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"doctor\", \"password\": \"wrongpassword\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "EXPECTED TO FAIL: Login with wrong password should return 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "❌ Test: Wrong Role for Endpoint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/appointments/doctor/10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "appointments",
+                "doctor",
+                "10"
+              ]
+            },
+            "description": "EXPECTED TO FAIL: Pharmacist trying to access doctor appointments should return 403 Forbidden."
+          },
+          "response": []
+        },
+        {
+          "name": "✅ Health Check (No Auth Required)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Health check is public and does NOT require authentication."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api",
+      "type": "string"
+    },
+    {
+      "key": "receptionist_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "doctor_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pharmacist_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "patient_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "appointment_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "prescription_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}

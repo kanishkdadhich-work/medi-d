@@ -30,11 +30,7 @@ public class Appointment {
     @Column(nullable = false, name = "doctor_id")
     private Long doctorId;
 
-    /**
-     * ManyToOne relationship with Patient
-     * Many appointments can belong to one patient
-     * Cascade: PERSIST and MERGE to handle appointments with patient operations
-     */
+
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "patient_id", nullable = false, foreignKey = @ForeignKey(name = "fk_appointment_patient"))
     private Patient patient;
@@ -43,7 +39,10 @@ public class Appointment {
     private LocalDateTime slotTimestamp;
 
     @Column(nullable = false, length = 50)
-    private String status; // e.g., "BOOKED", "COMPLETED", "CANCELLED"
+    private String status;
+
+    @OneToOne(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Prescription prescription;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

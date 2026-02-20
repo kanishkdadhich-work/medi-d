@@ -84,4 +84,13 @@ public interface IPrescriptionService {
      * @throws com.medid.exception.ResourceNotFoundException if prescription not found
      */
     void deletePrescription(Long id);
+
+    /**
+     * Dispense a prescription (deduct stock and mark as DISPENSED)
+     * @param id Prescription ID
+     * @return PrescriptionResponseDTO with updated status
+     * @throws com.medid.exception.ResourceNotFoundException if prescription not found
+     * @throws com.medid.exception.InvalidRequestException if insufficient stock or no items
+     */
+    PrescriptionResponseDTO dispensePrescription(Long id);
 }

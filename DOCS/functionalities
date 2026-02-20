@@ -1,0 +1,62 @@
+Medi-D – functionalities
+Authentication
+POST /api/auth/login – login (returns JWT)
+Patients
+GET /api/health – health check
+GET /api/patients/{id} – get patient
+POST /api/patients – create patient
+Appointments
+GET /api/appointments/{id} – get by ID
+POST /api/appointments – create
+PUT /api/appointments/{id} – update
+GET /api/appointments/patient/{patientId} – list by patient
+GET /api/appointments/doctor/{doctorId} – list by doctor
+GET /api/appointments/search/between – time range
+GET /api/appointments/booked/{doctorId} – booked slots
+GET /api/appointments/check-slot – slot availability
+GET /api/appointments/by-status/{status} – by status
+DELETE /api/appointments/{id} – delete
+Medicines
+GET /api/medicines/{id} – get by ID
+GET /api/medicines/search/by-name – get by name
+POST /api/medicines – create
+PUT /api/medicines/{id} – update
+GET /api/medicines/expiring-before – expiring before date
+GET /api/medicines/low-stock – low stock
+GET /api/medicines/search – search by pattern
+DELETE /api/medicines/{id} – delete
+Prescriptions
+GET /api/prescriptions/{id} – get by ID
+GET /api/prescriptions/appointment/{appointmentId} – get by appointment
+POST /api/prescriptions – create
+PUT /api/prescriptions/{id} – update
+GET /api/prescriptions/by-status/{status} – by status
+GET /api/prescriptions/pending – pending
+GET /api/prescriptions/dispensed – dispensed
+GET /api/prescriptions/patient/{patientId} – by patient
+GET /api/prescriptions/patient/{patientId}/pending-count – pending count
+POST /api/prescriptions/{id}/dispense – dispense (reduce stock)
+DELETE /api/prescriptions/{id} – delete
+Prescription items
+GET /api/prescription-items/{id} – get by ID
+POST /api/prescription-items – create
+PUT /api/prescription-items/{id} – update
+GET /api/prescription-items/prescription/{prescriptionId} – items for prescription
+GET /api/prescription-items/medicine/{medicineId} – items for medicine
+GET /api/prescription-items/medicine/{medicineId}/pending – pending items
+DELETE /api/prescription-items/{id} – delete
+Pharmacy (Pharmacist role)
+GET /api/pharmacy/prescriptions/pending – pending prescriptions
+POST /api/pharmacy/prescriptions/{id}/dispense – dispense prescription
+Test results
+All 44 tests pass, including:
+MediDApplicationTests – context loads
+RepositoryIntegrationTests – repository integration
+AppointmentRepositoryTests, PatientRepositoryTests, MedicineRepositoryTests, PrescriptionRepositoryTests, PrescriptionItemRepositoryTests – repository tests
+Running the application
+Set up PostgreSQL with the database and credentials from application-dev.properties.
+Run:
+   mvn spring-boot:run
+Or, with explicit profile:
+   mvn spring-boot:run -Dspring-boot.run.profiles=dev
+Default users: receptionist / receptpass, doctor / doctorpass, pharmacist / pharmacistpass

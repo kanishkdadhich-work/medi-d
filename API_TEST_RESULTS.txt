@@ -1,0 +1,30 @@
+===== MEDI-D API TESTING REPORT =====
+Date: Fri Feb 20 03:58:07 PM IST 2026
+
+✓ Health Check - HTTP 200
+DOCTOR Token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkb2N0b3IiLCJyb2xlcyI6IlJPTEVfRE9DVE9SIiwiaWF0IjoxNzcxNTgzMjg3LCJleHAiOjE3NzE1ODY4ODd9.nRtUJLG53Lz9CuUZhf1DRWzgh71LqsGdZRQicu7InnQ
+RECEPTIONIST Token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZWNlcHRpb25pc3QiLCJyb2xlcyI6IlJPTEVfUkVDRVBUSU9OSVNUIiwiaWF0IjoxNzcxNTgzMjg3LCJleHAiOjE3NzE1ODY4ODd9.eyQAOhgJ3YufOE40rEuRE0aNhZ5yLHerX_YHLfFKbw0
+PHARMACIST Token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwaGFybWFjaXN0Iiwicm9sZXMiOiJST0xFX1BIQVJNQUNJU1QiLCJpYXQiOjE3NzE1ODMyODgsImV4cCI6MTc3MTU4Njg4OH0.UXW7Edyga3TPXYtZgaTq4sLOU27fMRJwqTBSJy7PEo0
+Patient ID: 10
+✓ Get Patient - HTTP 200
+Appointment ID: 3
+✓ Get Appointments by Doctor - HTTP 200
+✓ Get Appointments by Patient (DOCTOR) - HTTP 200
+✓ Check Slot Availability - HTTP 200
+Medicine ID: 4
+✓ Get All Medicines - HTTP 200
+✓ Get Medicine by ID - HTTP 200
+✓ Get Low Stock Medicines - HTTP 200
+Prescription ID: 1
+✓ Get Pending Prescriptions (DOCTOR) - HTTP 200
+✓ Get Prescriptions by Patient - HTTP 200
+✓ Get Pending Prescriptions (PHARMACIST) - HTTP 200
+✓ Pharmacy: Cannot access patient appointments - HTTP 403
+✓ Doctor: Cannot access pharmacy endpoints - HTTP 403
+
+=== FINAL SUMMARY ===
+Total Tests: 18
+Passed: 18
+Failed: 0
+Success Rate: 100.00%
+Status: ALL TESTS PASSED

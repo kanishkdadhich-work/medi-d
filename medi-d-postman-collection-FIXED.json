@@ -1,0 +1,773 @@
+{
+  "info": {
+    "name": "Medi-D API - Authenticated Testing (UPDATED)",
+    "description": "Complete API testing collection with proper JWT authentication and role-based access control. Based on actual SecurityConfig requirements.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "🔐 AUTHENTICATION",
+      "item": [
+        {
+          "name": "1️⃣ Login as RECEPTIONIST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"receptionist\",\n  \"password\": \"receptpass\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/auth/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('receptionist_token', jsonData.token);",
+                  "    pm.environment.set('current_user', 'receptionist');",
+                  "    console.log('✅ Receptionist token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed: ' + pm.response.code);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2️⃣ Login as DOCTOR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"doctor\",\n  \"password\": \"doctorpass\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/auth/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('doctor_token', jsonData.token);",
+                  "    pm.environment.set('current_user', 'doctor');",
+                  "    console.log('✅ Doctor token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed: ' + pm.response.code);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3️⃣ Login as PHARMACIST",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"pharmacist\",\n  \"password\": \"pharmacistpass\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/auth/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('pharmacist_token', jsonData.token);",
+                  "    pm.environment.set('current_user', 'pharmacist');",
+                  "    console.log('✅ Pharmacist token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed: ' + pm.response.code);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "👨‍💼 RECEPTIONIST ENDPOINTS (Any Authenticated User Can Access)",
+      "item": [
+        {
+          "name": "Register Patient (ANY AUTH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Smith\",\n  \"contact\": \"+1-555-0100\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/patients",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "patients"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "console.log('Response Code: ' + pm.response.code);",
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('patient_id', jsonData.id);",
+                  "    console.log('✅ Patient created with ID: ' + jsonData.id);",
+                  "} else {",
+                  "    console.log('❌ Failed: ' + pm.response.code);",
+                  "    console.log(pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Patient (ANY AUTH)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/patients/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "patients", "1"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Book Appointment (ANY AUTH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientId\": {{patient_id}},\n  \"doctorId\": 10,\n  \"slotTimestamp\": \"2026-03-20T10:00:00\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/appointments",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "appointments"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('appointment_id', jsonData.id);",
+                  "    console.log('✅ Appointment created with ID: ' + jsonData.id);",
+                  "} else {",
+                  "    console.log('Response: ' + pm.response.code);",
+                  "    console.log(pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Appointments by Doctor (ANY AUTH)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/appointments/doctor/10",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "appointments", "doctor", "10"]
+            }
+          }
+        },
+        {
+          "name": "Check Slot Availability (ANY AUTH)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{receptionist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/appointments/check-slot?doctorId=10&slotTime=2026-03-20T10:00:00",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "appointments", "check-slot"],
+              "query": [
+                {
+                  "key": "doctorId",
+                  "value": "10"
+                },
+                {
+                  "key": "slotTime",
+                  "value": "2026-03-20T10:00:00"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👨‍⚕️ DOCTOR ENDPOINTS (DOCTOR or RECEPTIONIST)",
+      "item": [
+        {
+          "name": "Get Appointments by Patient (DOCTOR|RECEPTIONIST)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/appointments/patient/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "appointments", "patient", "1"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Doctor can access patient appointments', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Prescription (DOCTOR|RECEPTIONIST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appointmentId\": {{appointment_id}},\n  \"prescriptionDate\": \"2026-03-20\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/prescriptions",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "prescriptions"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('prescription_id', jsonData.id);",
+                  "    console.log('✅ Prescription created: ' + jsonData.id);",
+                  "} else {",
+                  "    console.log('Failed: ' + pm.response.code);",
+                  "    console.log(pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Pending Prescriptions (DOCTOR|RECEPTIONIST)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/prescriptions/pending",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "prescriptions", "pending"]
+            }
+          }
+        },
+        {
+          "name": "Mark Slot Unavailable (DOCTOR ONLY)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/appointments/mark-unavailable?doctorId=10&slotTime=2026-03-20T14:00:00",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "appointments", "mark-unavailable"],
+              "query": [
+                {
+                  "key": "doctorId",
+                  "value": "10"
+                },
+                {
+                  "key": "slotTime",
+                  "value": "2026-03-20T14:00:00"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Only DOCTOR can mark unavailable', function() {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "💊 PHARMACIST ENDPOINTS (PHARMACIST ONLY)",
+      "item": [
+        {
+          "name": "Get Pending Prescriptions (PHARMACIST ONLY)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/pharmacy/prescriptions/pending",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "pharmacy", "prescriptions", "pending"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pharmacist can access pending prescriptions', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dispense Prescription (PHARMACIST ONLY)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/pharmacy/prescriptions/1/dispense",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "pharmacy", "prescriptions", "1", "dispense"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Prescription dispensed successfully');",
+                  "} else {",
+                  "    console.log('Response: ' + pm.response.code);",
+                  "    console.log(pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Medicines (ANY AUTH)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/medicines",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "medicines"]
+            }
+          }
+        },
+        {
+          "name": "Get Low Stock Medicines (ANY AUTH)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/medicines/low-stock?minimumStock=50",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "medicines", "low-stock"],
+              "query": [
+                {
+                  "key": "minimumStock",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Medicine (ANY AUTH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aspirin\",\n  \"stock\": 100,\n  \"expiryDate\": \"2027-12-31\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/medicines",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "medicines"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 SECURITY & ROLE TESTS",
+      "item": [
+        {
+          "name": "❌ Test: Pharmacist Cannot Access Doctor Endpoints",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{pharmacist_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/appointments/patient/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "appointments", "patient", "1"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Pharmacist should be forbidden (403)', function() {",
+                  "  pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "❌ Test: Doctor Cannot Access Pharmacy Endpoints",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{doctor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/pharmacy/prescriptions/pending",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "pharmacy", "prescriptions", "pending"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Doctor should be forbidden (403)', function() {",
+                  "  pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "❌ Test: No Token Gives Unauthorized",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/patients/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "patients", "1"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('No token should give 401/403', function() {",
+                  "  pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "❌ Test: Invalid Token Gives Error",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid.token.here"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/patients/1",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "patients", "1"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Invalid token should give error', function() {",
+                  "  pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "✅ Public Endpoints (No Auth Required)",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Health check should be 200', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "receptionist_token",
+      "value": ""
+    },
+    {
+      "key": "doctor_token",
+      "value": ""
+    },
+    {
+      "key": "pharmacist_token",
+      "value": ""
+    },
+    {
+      "key": "patient_id",
+      "value": "1"
+    },
+    {
+      "key": "appointment_id",
+      "value": ""
+    },
+    {
+      "key": "prescription_id",
+      "value": ""
+    },
+    {
+      "key": "current_user",
+      "value": ""
+    }
+  ]
+}

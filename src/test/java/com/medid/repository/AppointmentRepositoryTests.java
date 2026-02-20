@@ -15,7 +15,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-@ActiveProfiles("dev")
+@ActiveProfiles("test")
 @DisplayName("Appointment Repository Tests")
 class AppointmentRepositoryTests {
 
@@ -36,11 +36,12 @@ class AppointmentRepositoryTests {
         testPatient.setContact("9876543210");
         testPatient = patientRepository.save(testPatient);
 
-        // Create test appointment
+        // Create test appointment (use truncated time to avoid precision mismatch in DB)
+        LocalDateTime slotTime = LocalDateTime.now().plusDays(1).withNano(0).withSecond(0);
         testAppointment = new Appointment();
         testAppointment.setPatient(testPatient);
         testAppointment.setDoctorId(1L);
-        testAppointment.setSlotTimestamp(LocalDateTime.now().plusDays(1));
+        testAppointment.setSlotTimestamp(slotTime);
         testAppointment.setStatus("BOOKED");
         testAppointment = appointmentRepository.save(testAppointment);
     }
@@ -86,9 +87,10 @@ class AppointmentRepositoryTests {
     @Test
     @DisplayName("Should check if slot is booked")
     void testIsSlotBooked() {
+        Appointment refetched = appointmentRepository.findById(testAppointment.getId()).orElseThrow();
         boolean isBooked = appointmentRepository.existsByDoctorIdAndSlotTimestampAndStatus(
-                testAppointment.getDoctorId(),
-                testAppointment.getSlotTimestamp(),
+                refetched.getDoctorId(),
+                refetched.getSlotTimestamp(),
                 "BOOKED"
         );
         

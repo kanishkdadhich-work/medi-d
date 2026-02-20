@@ -1,0 +1,89 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 28% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 188 65% 88%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 22% 86%;
+    --input: 214 22% 86%;
+    --primary: 213 94% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 18% 92%;
+    --secondary-foreground: 222 47% 11%;
+    --ring: 213 94% 48%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 28% 97%;
+    --card: 222 47% 13%;
+    --card-foreground: 210 28% 97%;
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 28% 97%;
+    --muted: 222 20% 22%;
+    --muted-foreground: 215 16% 70%;
+    --accent: 188 50% 26%;
+    --accent-foreground: 210 28% 97%;
+    --destructive: 0 72% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 20% 22%;
+    --input: 222 20% 22%;
+    --primary: 213 94% 56%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 222 20% 18%;
+    --secondary-foreground: 210 28% 97%;
+    --ring: 213 94% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Space Grotesk", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background-image:
+      radial-gradient(1200px 500px at 10% -10%, rgba(37, 99, 235, 0.18), transparent),
+      radial-gradient(900px 400px at 90% 10%, rgba(14, 116, 144, 0.18), transparent),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(248, 250, 252, 0.95) 100%);
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/50 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.4)];
+  }
+
+  .pulse-once {
+    animation: pulse-once 0.6s ease-out;
+  }
+
+  @keyframes pulse-once {
+    0% {
+      transform: translateY(6px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}

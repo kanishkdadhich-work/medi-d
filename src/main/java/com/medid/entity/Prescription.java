@@ -25,12 +25,7 @@ public class Prescription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * OneToOne relationship with Appointment
-     * Each prescription belongs to exactly one appointment
-     * Cascade: ALL to handle prescription lifecycle with appointment
-     * Orphan deletion: true to delete prescription if appointment is deleted
-     */
+
     @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "appointment_id", nullable = false, unique = true, 
                 foreignKey = @ForeignKey(name = "fk_prescription_appointment"))

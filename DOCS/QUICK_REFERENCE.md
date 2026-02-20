@@ -380,19 +380,19 @@ Response: "Medi-D System is up and running!"
 
 ## 📖 How to Use This Documentation
 
-1. **Start Here:** [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
+1. **Start Here:** [DOCUMENTATION_INDEX.md](DOCS/DOCUMENTATION_INDEX.md)
    - Navigation guide for all documentation
 
-2. **Setup Guide:** [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)
+2. **Setup Guide:** [DEVELOPMENT_GUIDE.md](DOCS/DEVELOPMENT_GUIDE.md)
    - How to build and run the project
 
-3. **API Reference:** [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+3. **API Reference:** [API_DOCUMENTATION.md](DOCS/API_DOCUMENTATION.md)
    - Complete API endpoint documentation with examples
 
 4. **Architecture:** [SERVICE_ARCHITECTURE_REFACTORING.md](SERVICE_ARCHITECTURE_REFACTORING.md)
    - Detailed architecture and design patterns
 
-5. **Test Results:** [TEST_RESULTS_REPORT.md](TEST_RESULTS_REPORT.md)
+5. **Test Results:** [TEST_RESULTS_REPORT.md](DOCS/TEST_RESULTS_REPORT.md)
    - Complete test execution results
 
 6. **Project Summary:** [PROJECT_COMPLETION_SUMMARY.md](PROJECT_COMPLETION_SUMMARY.md)
