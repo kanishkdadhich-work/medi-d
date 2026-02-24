@@ -10,7 +10,7 @@ export default function LoginPage({ onLogin, loading, error }) {
           <div className="absolute -right-10 -top-12 h-44 w-44 rounded-full bg-white/10" />
           <div className="absolute -bottom-14 -left-12 h-52 w-52 rounded-full bg-emerald-300/20" />
           <p className="relative text-xs uppercase tracking-[0.28em] text-med-100">Medical Platform</p>
-          <h1 className="relative mt-3 text-6xl font-extrabold leading-none tracking-tight sm:text-7xl">Medi-D</h1>
+          <h1 className="relative mt-3 text-6xl font-extrabold leading-none tracking-tight sm:text-7xl">MEDI-D</h1>
           <p className="relative mt-2 text-sm uppercase tracking-[0.18em] text-med-100">Medical & Inventory Management</p>
           <p className="mt-4 text-sm text-med-100">
             Role-based workflow for reception, consultations, pharmacy dispensing, and admin operations.

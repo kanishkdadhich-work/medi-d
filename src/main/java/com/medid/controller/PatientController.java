@@ -1,6 +1,7 @@
 package com.medid.controller;
 
 import com.medid.dto.PatientViewDTO;
+import com.medid.dto.PagedResponse;
 import com.medid.entity.Patient;
 import com.medid.entity.User;
 import com.medid.enums.Role;
@@ -8,6 +9,10 @@ import com.medid.service.IPatientService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +49,32 @@ public class PatientController {
                 .map(p -> toView(p, includeMedicalBlob))
                 .toList();
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<PagedResponse<PatientViewDTO>> getAllPaged(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction
+    ) {
+        boolean includeMedicalBlob = hasMedicalAccess(authentication);
+        Sort sort = "asc".equalsIgnoreCase(direction)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<PatientViewDTO> mapped = patientService.getAllPatients(pageable).map(p -> toView(p, includeMedicalBlob));
+
+        return ResponseEntity.ok(new PagedResponse<>(
+                mapped.getContent(),
+                mapped.getNumber(),
+                mapped.getSize(),
+                mapped.getTotalElements(),
+                mapped.getTotalPages(),
+                mapped.isFirst(),
+                mapped.isLast()
+        ));
     }
 
     @GetMapping("/by-phone")

@@ -6,6 +6,14 @@
   body {
     @apply bg-slate-50 text-slate-800 antialiased;
   }
+
+  select option {
+    @apply bg-white text-slate-900;
+  }
+
+  table {
+    @apply text-slate-800;
+  }
 }
 
 @layer components {
@@ -22,19 +30,19 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition;
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-primary {
-    @apply btn bg-med-600 text-white hover:bg-med-700;
+    @apply btn bg-med-600 text-white hover:bg-med-700 disabled:bg-slate-300 disabled:text-slate-600;
   }
 
   .btn-success {
-    @apply btn bg-success-500 text-white hover:bg-success-600;
+    @apply btn bg-success-500 text-white hover:bg-success-600 disabled:bg-slate-300 disabled:text-slate-600;
   }
 
   .btn-ghost {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400;
   }
 
   .pill {

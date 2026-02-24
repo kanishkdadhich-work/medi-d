@@ -6,6 +6,9 @@ import com.medid.entity.Appointment;
 import com.medid.entity.Prescription;
 import com.medid.entity.PrescriptionItem;
 import com.medid.enums.PrescriptionStatus;
+import com.medid.exception.ConflictException;
+import com.medid.exception.ResourceNotFoundException;
+import com.medid.exception.ValidationException;
 import com.medid.repository.AppointmentRepository;
 import com.medid.repository.MedicineRepository;
 import com.medid.repository.PrescriptionRepository;
@@ -49,7 +52,15 @@ public class PrescriptionServiceImpl implements IPrescriptionService {
                 request.getAppointmentId(), request.getItems() == null ? 0 : request.getItems().size());
         // 1. Find the appointment
         Appointment app = appointmentRepo.findById(request.getAppointmentId())
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+
+        String apptStatus = app.getStatus() == null ? "" : app.getStatus().trim().toUpperCase();
+        if (!"SCHEDULED".equals(apptStatus) && !"BOOKED".equals(apptStatus)) {
+            throw new ConflictException("Prescription can only be created for SCHEDULED appointments.");
+        }
+        if (prescriptionRepo.existsByAppointment_AppointmentId(request.getAppointmentId())) {
+            throw new ConflictException("Prescription already exists for this appointment.");
+        }
 
         // 2. Create the Prescription header
         Prescription prescription = new Prescription();
@@ -57,18 +68,19 @@ public class PrescriptionServiceImpl implements IPrescriptionService {
         prescription.setDiagnosisNotes(request.getDiagnosisNotes());
         prescription.setStatus(PrescriptionStatus.PENDING); // Waiting for Pharmacist
 
-        // 3. Convert DTO items to Entity items
+        // 3. Convert request items into persisted prescription line-items.
         List<PrescriptionItem> entityItems = request.getItems().stream().map(dto -> {
             PrescriptionItem item = new PrescriptionItem();
             item.setPrescription(prescription);
-            item.setMedicine(medicineRepo.findById(dto.getMedicineId()).orElseThrow());
+            item.setMedicine(medicineRepo.findById(dto.getMedicineId())
+                    .orElseThrow(() -> new ValidationException("Medicine not found for id: " + dto.getMedicineId())));
             item.setQuantity(dto.getQuantity());
             return item;
         }).collect(Collectors.toList());
 
         prescription.setItems(entityItems);
 
-        // 4. Mark appointment as COMPLETED automatically
+        // 4. Consultation completion advances appointment state.
         app.setStatus("COMPLETED");
         appointmentRepo.save(app);
 
@@ -87,7 +99,7 @@ public class PrescriptionServiceImpl implements IPrescriptionService {
     @Override
     public Prescription getLatestByPatientId(Long patientId) {
         return prescriptionRepo.findTopByAppointment_Patient_PatientIdOrderByCreatedAtDesc(patientId)
-                .orElseThrow(() -> new RuntimeException("No consultation found for patientId: " + patientId));
+                .orElseThrow(() -> new ResourceNotFoundException("No consultation found for patientId: " + patientId));
     }
 
     public List<PharmacyPrescriptionDTO> getPendingPrescriptionsForPharmacy() {

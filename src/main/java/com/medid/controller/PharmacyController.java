@@ -1,12 +1,18 @@
 package com.medid.controller;
 
+import com.medid.dto.PagedResponse;
 import com.medid.dto.PrescriptionQueueDTO;
 import com.medid.entity.Medicine;
 import com.medid.entity.Prescription;
 import com.medid.repository.MedicineRepository;
+import com.medid.repository.PrescriptionRepository;
 import com.medid.service.IPharmacyService;
 import com.medid.service.PrescriptionServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +34,8 @@ public class PharmacyController {
 
     @Autowired
     private PrescriptionServiceImpl prescriptionService;
+    @Autowired
+    private PrescriptionRepository prescriptionRepository;
 
 
     // Requirement 4.4 & Module D: Pharmacist Queue (Privacy enforced)
@@ -48,6 +56,41 @@ public class PharmacyController {
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/queue/paged")
+    @PreAuthorize("hasAnyRole('PHARMACIST', 'ADMIN')")
+    public ResponseEntity<PagedResponse<PrescriptionQueueDTO>> getQueuePaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction
+    ) {
+        Sort sort = "asc".equalsIgnoreCase(direction)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<Prescription> pending = prescriptionRepository.findByStatus(com.medid.enums.PrescriptionStatus.PENDING, pageable);
+
+        List<PrescriptionQueueDTO> dtos = pending.getContent().stream().map(p -> {
+            PrescriptionQueueDTO dto = new PrescriptionQueueDTO();
+            dto.setPrescriptionId(p.getPrescriptionId());
+            dto.setPatientName(p.getAppointment().getPatient().getFullName());
+            dto.setMedicineNames(p.getItems().stream()
+                    .map(item -> item.getMedicine().getName() + " (Qty: " + item.getQuantity() + ")")
+                    .collect(Collectors.toList()));
+            return dto;
+        }).toList();
+
+        return ResponseEntity.ok(new PagedResponse<>(
+                dtos,
+                pending.getNumber(),
+                pending.getSize(),
+                pending.getTotalElements(),
+                pending.getTotalPages(),
+                pending.isFirst(),
+                pending.isLast()
+        ));
     }
 
     // Module C: Dispense with All-or-Nothing Transaction

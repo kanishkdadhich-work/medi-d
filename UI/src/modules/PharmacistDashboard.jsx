@@ -20,11 +20,17 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
   const [allMedicines, setAllMedicines] = useState([]);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
 
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [pendingPages, setPendingPages] = useState(1);
+  const [alertsTotal, setAlertsTotal] = useState(0);
+  const [alertsPages, setAlertsPages] = useState(1);
+  const [allTotal, setAllTotal] = useState(0);
+  const [allPages, setAllPages] = useState(1);
+
   const [loadingPending, setLoadingPending] = useState(false);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
   const [loadingAllMedicines, setLoadingAllMedicines] = useState(false);
   const [savingMedicine, setSavingMedicine] = useState(false);
-  const [deletingExpired, setDeletingExpired] = useState(false);
 
   const [pendingError, setPendingError] = useState('');
   const [alertsError, setAlertsError] = useState('');
@@ -32,35 +38,53 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
 
   const [newMedicine, setNewMedicine] = useState({
     name: '',
-    stockCount: 0,
-    minThreshold: 0,
+    stockCount: '',
+    minThreshold: '',
     expiryDate: ''
   });
   const [pendingPage, setPendingPage] = useState(1);
   const [alertsPage, setAlertsPage] = useState(1);
   const [allPage, setAllPage] = useState(1);
+  const [stockDraft, setStockDraft] = useState({});
+  const [updatingStockId, setUpdatingStockId] = useState(null);
+  const toSafeText = (value) => String(value || '').replace(/[<>]/g, '').trimStart();
+  const parseNonNegativeInt = (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) return null;
+    return parsed;
+  };
+
+  const canCreateMedicine = Boolean(
+    String(newMedicine.name || '').trim()
+    && parseNonNegativeInt(newMedicine.stockCount) !== null
+    && parseNonNegativeInt(newMedicine.minThreshold) !== null
+  );
 
   const loadPending = async () => {
     setLoadingPending(true);
     setPendingError('');
     try {
       const data = await api.getPendingPrescriptions();
-      const clean = (Array.isArray(data) ? data : []).map((p) => ({
+      const source = Array.isArray(data) ? data : [];
+      const clean = source.map((p) => ({
         prescriptionId: p.prescriptionId,
         status: p.status,
-        patientName: p?.appointment?.patient?.fullName || 'Unknown Patient',
-        medicines: (p.items || []).map((item) => ({
-          name: item?.medicine?.name || 'Unknown Medicine',
-          quantity: item?.quantity ?? 0
-        }))
+        patientName: p.patientName || p?.appointment?.patient?.fullName || 'Unknown Patient',
+        medicines: (p.medicineNames || (p.items || []).map((item) => `${item?.medicine?.name || 'Unknown'} x ${item?.quantity || 0}`)).map((name) => ({ name, quantity: '' }))
       }));
-      setPending(clean);
+      const start = (pendingPage - 1) * PAGE_SIZE;
+      setPending(clean.slice(start, start + PAGE_SIZE));
+      setPendingTotal(clean.length);
+      setPendingPages(Math.max(1, Math.ceil(clean.length / PAGE_SIZE)));
       if (clean.length > 0 && !selectedPrescription) {
         setSelectedPrescription(clean[0]);
       }
     } catch (error) {
       setPendingError(getApiErrorMessage(error));
       setPending([]);
+      setPendingTotal(0);
+      setPendingPages(1);
       setSelectedPrescription(null);
     } finally {
       setLoadingPending(false);
@@ -71,12 +95,17 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
     setLoadingAlerts(true);
     setAlertsError('');
     try {
-      const data = await api.getInventoryAlerts();
-      const list = Array.isArray(data) ? data : [];
-      setAlerts(list.filter((item) => Number(item.stockCount) <= Number(item.minThreshold)));
+      const list = await api.getInventoryAlerts();
+      const arr = Array.isArray(list) ? list : [];
+      const slice = arr.slice((alertsPage - 1) * PAGE_SIZE, alertsPage * PAGE_SIZE);
+      setAlerts(slice);
+      setAlertsTotal(arr.length);
+      setAlertsPages(Math.max(1, Math.ceil(arr.length / PAGE_SIZE)));
     } catch (error) {
       setAlertsError(getApiErrorMessage(error));
       setAlerts([]);
+      setAlertsTotal(0);
+      setAlertsPages(1);
     } finally {
       setLoadingAlerts(false);
     }
@@ -86,40 +115,49 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
     setLoadingAllMedicines(true);
     setAllMedicinesError('');
     try {
-      const data = await api.getAllMedicines();
-      setAllMedicines(Array.isArray(data) ? data : []);
+      const list = await api.getAllMedicines();
+      const arr = Array.isArray(list) ? list : [];
+      const slice = arr.slice((allPage - 1) * PAGE_SIZE, allPage * PAGE_SIZE);
+      setAllMedicines(slice);
+      setAllTotal(arr.length);
+      setAllPages(Math.max(1, Math.ceil(arr.length / PAGE_SIZE)));
     } catch (error) {
       setAllMedicinesError(getApiErrorMessage(error));
       setAllMedicines([]);
+      setAllTotal(0);
+      setAllPages(1);
     } finally {
       setLoadingAllMedicines(false);
     }
   };
 
   useEffect(() => {
-    loadPending();
-    loadAlerts();
-    loadAllMedicines();
-  }, []);
+    if (view === 'pending') {
+      loadPending();
+    }
+  }, [view, pendingPage]);
 
   useEffect(() => {
-    setPendingPage(1);
-  }, [pending.length]);
+    if (view === 'alerts') {
+      loadAlerts();
+    }
+  }, [view, alertsPage]);
 
   useEffect(() => {
-    setAlertsPage(1);
-  }, [alerts.length]);
-
-  useEffect(() => {
-    setAllPage(1);
-  }, [allMedicines.length]);
+    if (view === 'all') {
+      loadAllMedicines();
+    }
+  }, [view, allPage]);
 
   const onDispense = async (id) => {
+    // Dispense endpoint is transactional and stock-safe server-side.
     try {
       await api.dispensePrescription(id);
       notify('success', `Prescription ${id} dispensed.`);
       setSelectedPrescription(null);
-      await Promise.all([loadPending(), loadAlerts(), loadAllMedicines()]);
+      await loadPending();
+      await loadAlerts();
+      await loadAllMedicines();
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     }
@@ -130,14 +168,15 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
     setSavingMedicine(true);
     try {
       await api.createMedicine({
-        name: newMedicine.name,
-        stockCount: Number(newMedicine.stockCount),
-        minThreshold: Number(newMedicine.minThreshold),
+        name: toSafeText(newMedicine.name),
+        stockCount: parseNonNegativeInt(newMedicine.stockCount),
+        minThreshold: parseNonNegativeInt(newMedicine.minThreshold),
         expiryDate: newMedicine.expiryDate || null
       });
       notify('success', 'Medicine added successfully.');
-      setNewMedicine({ name: '', stockCount: 0, minThreshold: 0, expiryDate: '' });
-      await Promise.all([loadAllMedicines(), loadAlerts()]);
+      setNewMedicine({ name: '', stockCount: '', minThreshold: '', expiryDate: '' });
+      await loadAllMedicines();
+      await loadAlerts();
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     } finally {
@@ -145,32 +184,42 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
     }
   };
 
-  const pendingCount = useMemo(() => pending.length, [pending.length]);
-  const pagedPending = pending.slice((pendingPage - 1) * PAGE_SIZE, pendingPage * PAGE_SIZE);
-  const pagedAlerts = alerts.slice((alertsPage - 1) * PAGE_SIZE, alertsPage * PAGE_SIZE);
-  const pagedAllMedicines = allMedicines.slice((allPage - 1) * PAGE_SIZE, allPage * PAGE_SIZE);
+  const pendingCount = useMemo(() => pendingTotal, [pendingTotal]);
   const expiredCount = useMemo(() => allMedicines.filter((med) => isExpired(med.expiryDate)).length, [allMedicines]);
+  const hasChangedStock = (med) => {
+    const draft = stockDraft[med.medicineId];
+    if (draft === undefined || draft === null || draft === '') return false;
+    const parsed = Number(draft);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed !== Number(med.stockCount);
+  };
 
   const onDeleteExpired = async (medicineId) => {
     try {
       await api.deleteExpiredMedicine(medicineId);
       notify('success', 'Expired stock deleted.');
-      await Promise.all([loadAllMedicines(), loadAlerts()]);
+      await loadAllMedicines();
+      await loadAlerts();
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     }
   };
 
-  const onPurgeExpired = async () => {
-    setDeletingExpired(true);
+  const onUpdateStock = async (medicineId) => {
+    const nextStock = Number(stockDraft[medicineId]);
+    if (Number.isNaN(nextStock) || nextStock < 0) {
+      notify('error', 'Stock count must be zero or greater.');
+      return;
+    }
+    setUpdatingStockId(medicineId);
     try {
-      const result = await api.purgeExpiredMedicines();
-      notify('success', `Expired medicines removed: ${result?.deletedCount ?? 0}`);
-      await Promise.all([loadAllMedicines(), loadAlerts()]);
+      await api.updateMedicineStock(medicineId, nextStock);
+      notify('success', 'Medicine stock updated.');
+      await loadAllMedicines();
+      await loadAlerts();
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     } finally {
-      setDeletingExpired(false);
+      setUpdatingStockId(null);
     }
   };
 
@@ -204,7 +253,7 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
               />
 
               {!loadingPending && !pendingError && pending.length > 0 ? (
-                pagedPending.map((prescription) => (
+                pending.map((prescription) => (
                   <button
                     key={prescription.prescriptionId}
                     type="button"
@@ -216,7 +265,7 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                   </button>
                 ))
               ) : null}
-              <Pagination page={pendingPage} pageSize={PAGE_SIZE} totalItems={pending.length} onPageChange={setPendingPage} />
+              <Pagination page={pendingPage} pageSize={PAGE_SIZE} totalItems={pendingTotal} totalPages={pendingPages} onPageChange={setPendingPage} />
             </div>
           </div>
 
@@ -230,7 +279,7 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                 </div>
                 <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
                   {selectedPrescription.medicines.map((med, idx) => (
-                    <li key={`${selectedPrescription.prescriptionId}-${idx}`}>{med.name} x {med.quantity}</li>
+                    <li key={`${selectedPrescription.prescriptionId}-${idx}`}>{med.name}</li>
                   ))}
                 </ul>
                 <button className="btn-success w-full" onClick={() => onDispense(selectedPrescription.prescriptionId)}>Dispense</button>
@@ -265,7 +314,7 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {pagedAlerts.map((med) => (
+                    {alerts.map((med) => (
                       <tr key={med.medicineId} className="bg-rose-50/40">
                         <td className="px-4 py-3 font-medium text-slate-900">{med.name}</td>
                         <td className="px-4 py-3 text-rose-700">{med.stockCount}</td>
@@ -276,7 +325,7 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                 </table>
               </div>
             ) : null}
-            <Pagination page={alertsPage} pageSize={PAGE_SIZE} totalItems={alerts.length} onPageChange={setAlertsPage} />
+            <Pagination page={alertsPage} pageSize={PAGE_SIZE} totalItems={alertsTotal} totalPages={alertsPages} onPageChange={setAlertsPage} />
           </div>
         </div>
       ) : null}
@@ -287,9 +336,6 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
             <h3 className="text-base font-semibold text-slate-900">All Medicines Available</h3>
             <div className="flex items-center gap-2">
               <span className="pill bg-rose-100 text-rose-700">Expired: {expiredCount}</span>
-              <button className="btn-ghost" disabled={deletingExpired || expiredCount === 0} onClick={onPurgeExpired}>
-                {deletingExpired ? 'Deleting...' : 'Delete All Expired'}
-              </button>
             </div>
           </div>
           <div className="mt-4">
@@ -308,11 +354,12 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">Stock</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">Threshold</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">Expiry</th>
+                      <th className="px-4 py-3 text-left font-semibold text-slate-600">Update Stock</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {pagedAllMedicines.map((med) => (
+                    {allMedicines.map((med) => (
                       <tr key={med.medicineId}>
                         <td className="px-4 py-3 font-medium text-slate-900">{med.name}</td>
                         <td className="px-4 py-3">{med.stockCount}</td>
@@ -320,6 +367,24 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                         <td className="px-4 py-3">
                           {med.expiryDate || '-'}
                           {isExpired(med.expiryDate) ? <span className="ml-2 rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-700">Expired</span> : null}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="field w-24"
+                              type="number"
+                              min="0"
+                              value={stockDraft[med.medicineId] ?? med.stockCount}
+                              onChange={(e) => setStockDraft((s) => ({ ...s, [med.medicineId]: e.target.value }))}
+                            />
+                            <button
+                              className="btn-ghost"
+                              onClick={() => onUpdateStock(med.medicineId)}
+                              disabled={updatingStockId === med.medicineId || !hasChangedStock(med)}
+                            >
+                              {updatingStockId === med.medicineId ? 'Saving...' : 'Update'}
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           {isExpired(med.expiryDate) ? (
@@ -334,7 +399,7 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
                 </table>
               </div>
             ) : null}
-            <Pagination page={allPage} pageSize={PAGE_SIZE} totalItems={allMedicines.length} onPageChange={setAllPage} />
+            <Pagination page={allPage} pageSize={PAGE_SIZE} totalItems={allTotal} totalPages={allPages} onPageChange={setAllPage} />
           </div>
         </div>
       ) : null}
@@ -343,13 +408,13 @@ export default function PharmacistDashboard({ api, notify, view = 'pending' }) {
         <div className="panel p-5">
           <h3 className="text-base font-semibold text-slate-900">Add New Medicine</h3>
           <form className="mt-4 space-y-3" onSubmit={onCreateMedicine}>
-            <input className="field" placeholder="Medicine name" value={newMedicine.name} onChange={(e) => setNewMedicine((s) => ({ ...s, name: e.target.value }))} required />
+            <input className="field" placeholder="Medicine name" value={newMedicine.name} onChange={(e) => setNewMedicine((s) => ({ ...s, name: toSafeText(e.target.value) }))} required />
             <div className="grid gap-3 sm:grid-cols-2">
-              <input className="field" type="number" placeholder="Stock count" value={newMedicine.stockCount} onChange={(e) => setNewMedicine((s) => ({ ...s, stockCount: e.target.value }))} required />
-              <input className="field" type="number" placeholder="Min threshold" value={newMedicine.minThreshold} onChange={(e) => setNewMedicine((s) => ({ ...s, minThreshold: e.target.value }))} required />
+              <input className="field" type="number" min="0" step="1" placeholder="Stock count" value={newMedicine.stockCount} onChange={(e) => setNewMedicine((s) => ({ ...s, stockCount: e.target.value }))} required />
+              <input className="field" type="number" min="0" step="1" placeholder="Min threshold" value={newMedicine.minThreshold} onChange={(e) => setNewMedicine((s) => ({ ...s, minThreshold: e.target.value }))} required />
             </div>
             <input className="field" type="date" value={newMedicine.expiryDate} onChange={(e) => setNewMedicine((s) => ({ ...s, expiryDate: e.target.value }))} />
-            <button className="btn-primary w-full" disabled={savingMedicine}>{savingMedicine ? 'Saving...' : 'Add Medicine'}</button>
+            <button className="btn-primary w-full" disabled={savingMedicine || !canCreateMedicine}>{savingMedicine ? 'Saving...' : 'Add Medicine'}</button>
           </form>
         </div>
       ) : null}

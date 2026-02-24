@@ -1,19 +1,20 @@
 # Medi-D
 
-Medical & Inventory Management System with role-based workflows for:
+Medical and Inventory Management System with role-based workflows for:
 - `ADMIN`
 - `RECEPTIONIST`
 - `DOCTOR`
 - `PHARMACIST`
 
-Backend is a Spring Boot REST API, frontend is a React + Vite + Tailwind app in `UI/`.
+Backend: Spring Boot (`src/main/java`)  
+Frontend: React + Vite + Tailwind (`UI/`)
 
 ## 1. Tech Stack
 
 ### Backend
 - Java 21
 - Spring Boot 3.5.x
-- Spring Security (JWT-based auth)
+- Spring Security (JWT, stateless)
 - Spring Data JPA + Hibernate
 - PostgreSQL
 - Lombok
@@ -23,269 +24,199 @@ Backend is a Spring Boot REST API, frontend is a React + Vite + Tailwind app in 
 - Vite 5
 - Tailwind CSS
 
-## 2. High-Level Architecture
+## 2. Architecture
 
-- Frontend (`UI`) calls backend REST APIs under `/api/**`.
-- Authentication:
-  - Login returns JWT
-  - JWT is sent as HTTP-only cookie (`medid_token`) and can also be used via `Authorization: Bearer <token>`
-- Authorization:
-  - Role-based endpoint protection in `SecurityConfig`
-  - Additional method-level checks via `@PreAuthorize`
-- Domain modules:
-  - Appointments
-  - Patients
-  - Prescriptions
-  - Pharmacy inventory/dispensing
-  - Admin user management
+- Frontend calls backend APIs under `/api/**`.
+- Authentication is cookie-first JWT:
+  - Access token cookie: `medid_token` (HTTP-only)
+  - Refresh token cookie: `medid_refresh` (HTTP-only)
+  - Fingerprint cookie: `medid_fp` (HTTP-only)
+- Backend is stateless (`SessionCreationPolicy.STATELESS`).
+- Authorization is role-based via `SecurityConfig` and `@PreAuthorize`.
 
-## 3. Database Schema
+## 3. Security Model
 
-> Note: Hibernate DDL mode is `update`, so schema is managed from entities.
+### Implemented hardening
+- Short-lived access token + refresh token rotation.
+- Fingerprint token binding:
+  - JWT includes fingerprint (`fp`) and user-agent hash (`uah`) claims.
+  - Request is authenticated only when token + fingerprint cookie + user-agent hash match.
+- Logout token revocation:
+  - Access and refresh tokens are revoked server-side on `/api/auth/logout`.
+- Login brute-force mitigation:
+  - `LoginRateLimitFilter` limits `/api/auth/login` to `20 req/sec` per IP.
+- Browser-only API guard for authenticated sessions:
+  - `ApiClientGuardFilter` blocks tool-style API calls (Postman/curl/etc.) for protected `/api/**` when auth material is present.
 
-### 3.1 `users`
-Represents staff users (and Spring Security principals).
+### Notes
+- Passwords are stored as BCrypt hashes.
+- Cookies are `SameSite=Lax`.
+- `secure=false` in local/dev; set to `true` in HTTPS production.
 
-Columns:
+## 4. Database Schema (Current)
+
+Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
+
+### `users`
 - `id` (PK)
-- `username` (unique, not null)
-- `password` (BCrypt hash)
-- `role` (`ADMIN|DOCTOR|PHARMACIST|RECEPTIONIST|...` enum)
-- `doctor_id` (logical doctor identifier used by appointment flow)
-- `specialization` (doctor specialization for UX and filtering)
-- `enabled` (soft enable/disable)
+- `username` (unique)
+- `password` (BCrypt)
+- `role`
+- `doctor_id` (links to legacy `doctors.id` where applicable)
+- `doctor_ref_code` (`MEDID-XX`, unique among doctors)
+- `specialization`
+- `weekday_shift` (`MORNING|EVENING|NIGHT`)
+- `weekend_shift` (`MORNING|EVENING|NIGHT`)
+- `enabled`
 
-Reasoning:
-- Keep auth + role + profile in one table for simpler RBAC.
-- `doctor_id` is stored because appointments currently reference `doctorId` as scalar, not FK.
-
-### 3.2 `patients`
-Patient master data.
-
-Columns:
+### `patients`
 - `patient_id` (PK)
 - `full_name`
 - `phone_number` (unique)
 - `gender`
-- `medical_history_blob` (TEXT)
+- `medical_history_blob`
 - `created_at`
 
-Reasoning:
-- Unique phone enables “find existing patient” flow.
-- Medical blob is restricted by role (doctor/admin visibility).
-
-### 3.3 `appointments`
-Booking and doctor schedule records.
-
-Columns:
+### `appointments`
 - `appointment_id` (PK)
-- `patient_id` (FK -> `patients.patient_id`, nullable for unavailable slots)
-- `doctor_id` (scalar doctor reference)
+- `patient_id` (FK to `patients.patient_id`, nullable for unavailable slots)
+- `doctor_id`
 - `appointment_time`
 - `status` (`SCHEDULED|BOOKED|COMPLETED|CANCELLED|UNAVAILABLE`)
 
-Reasoning:
-- `UNAVAILABLE` is modeled as an appointment row without patient, letting doctor block slots.
-- Historical rows are retained; rebooking can reuse `CANCELLED/COMPLETED` slot rows.
-
-### 3.4 `prescriptions`
-Consultation output created by doctor.
-
-Columns:
+### `prescriptions`
 - `prescription_id` (PK)
-- `status` (`PENDING|DISPENSED|CANCELLED` enum)
-- `appointment_id` (FK -> `appointments.appointment_id`)
-- `diagnosis_notes` (TEXT)
+- `appointment_id` (FK)
+- `diagnosis_notes`
+- `status` (`PENDING|DISPENSED|CANCELLED`)
 - `created_at`
 
-Reasoning:
-- Prescription is linked to appointment for audit trail and workflow continuity.
-
-### 3.5 `prescription_items`
-Line items for medicines in a prescription.
-
-Columns:
+### `prescription_items`
 - `item_id` (PK)
-- `prescription_id` (FK -> `prescriptions.prescription_id`)
-- `medicine_id` (FK -> `medicines.medicine_id`)
+- `prescription_id` (FK)
+- `medicine_id` (FK)
 - `quantity`
 
-Reasoning:
-- Normalized line-item model allows many medicines per prescription.
-
-### 3.6 `medicines`
-Medicine inventory.
-
-Columns:
+### `medicines`
 - `medicine_id` (PK)
 - `name`
 - `stock_count`
 - `min_threshold`
 - `expiry_date`
 
-Reasoning:
-- `min_threshold` drives low-stock alerts.
-- `expiry_date` supports expired stock deletion.
+## 5. Key Business Rules
 
-## 4. Entity Relationships (and why)
+### Appointment rules
+- Booking allowed for `RECEPTIONIST`/`ADMIN`.
+- Past slots are blocked in UI and validated server-side.
+- Slot conflict statuses: `SCHEDULED`, `BOOKED`, `UNAVAILABLE`.
+- `CANCELLED` and `COMPLETED` slots are reusable for future booking.
+- A patient cannot hold multiple active appointments with the same doctor on the same day.
+- Status transitions are restricted (including terminal behavior for `COMPLETED`/`CANCELLED`).
+- Only doctor can manage `UNAVAILABLE` slot lifecycle.
 
-- `Patient (1) -> (N) Appointment`
-  - A patient can have many appointments over time.
-- `Appointment (1) -> (N) Prescription` (practically one active/latest in workflows)
-  - Consultation history can be audited.
-- `Prescription (1) -> (N) PrescriptionItem`
-  - One prescription can contain multiple medicines.
-- `PrescriptionItem (N) -> (1) Medicine`
-  - Many prescriptions can reference the same medicine stock item.
+### Doctor profile rules
+- For `DOCTOR`, required fields:
+  - `specialization`
+  - `doctor_ref_code` in `MEDID-XX` format
+- Exactly one day type assignment:
+  - weekday shift OR weekend shift (not both).
 
-Design tradeoff:
-- `Appointment.doctorId` is scalar instead of FK relation to `User`; this keeps current model simple but is less strict than a relational FK.
+### Prescription & pharmacy rules
+- Prescription creation requires positive quantities.
+- Completed appointments cannot be prescribed again.
+- Pharmacist queue hides diagnosis notes.
+- Dispense is transactional and concurrency-safe.
+- Stock deduction uses FEFO (earliest-expiry-first by medicine name).
+- Duplicate medicine batch with same `name + expiry_date` is blocked; update stock instead.
 
-## 5. Core Business Rules
-
-### Appointments
-- Receptionist/admin can book appointments.
-- Doctor can mark a slot as unavailable.
-- Slot booking conflicts with statuses: `SCHEDULED`, `BOOKED`, `UNAVAILABLE`.
-- `CANCELLED` and `COMPLETED` slots are rebookable.
-- Same patient cannot have multiple active appointments with same doctor on same day.
-- Rebooking same doctor/time after cancel/complete reuses historical row to avoid unique-slot conflicts.
-
-### Consultation / Prescription
-- Doctor/admin can create prescriptions.
-- Creating prescription marks appointment `COMPLETED`.
-- Doctor/admin can fetch latest consultation by patient.
-
-### Pharmacy
-- Pharmacist/admin sees pending prescriptions.
-- Dispense is all-or-nothing transaction.
-- Stock is deducted with pessimistic row locking.
-- Low stock alerts and expired stock cleanup are supported.
-
-### Privacy
-- `medicalHistoryBlob` visible only to doctor/admin.
-- Pharmacist views avoid diagnosis details in queue DTO flows.
-
-## 6. Workflows
-
-### 6.1 Receptionist Booking Workflow
-1. Search/select existing patient by ID/name/phone or register new one.
-2. Select doctor (ID/username; specialization visible).
-3. Pick slot.
-4. Backend validates conflicts + patient-doctor-day rule.
-5. Appointment created with `SCHEDULED`.
-
-### 6.2 Doctor Consultation Workflow
-1. Doctor opens queue (`Today`, `Completed`, `Future`, `Calendar`).
-2. Can update patient medical blob.
-3. Adds diagnosis + medicines (live searchable dropdown).
-4. Submits prescription.
-5. Appointment becomes `COMPLETED`.
-6. Latest consultation is viewable for the patient.
-
-### 6.3 Doctor Calendar Workflow
-1. Doctor selects date.
-2. Marks slot `UNAVAILABLE` or clears unavailability.
-3. Receptionist sees unavailable slots as blocked.
-
-### 6.4 Pharmacist Dispense Workflow
-1. View pending prescriptions.
-2. Dispense selected prescription.
-3. Backend locks medicine rows, validates stock, deducts inventory.
-4. Prescription status changes to `DISPENSED`.
-
-### 6.5 Admin Workflow
-1. Create/update/enable/disable/delete staff users.
-2. Maintain doctor metadata (`doctorId`, specialization).
-3. View system overview KPIs.
-
-## 7. API Surface (Summary)
+## 6. API Summary
 
 ### Auth
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
+- `POST /api/auth/refresh`
 - `GET /api/auth/me`
 - `POST /api/auth/signup`
 
 ### Admin (`ADMIN`)
 - `GET /api/admin/overview`
 - `GET /api/admin/users`
+- `GET /api/admin/users/paged`
 - `POST /api/admin/users/create`
 - `PUT /api/admin/users/{id}`
 - `PATCH /api/admin/users/{id}/status`
 - `DELETE /api/admin/users/{id}`
 
 ### Appointments
-- `GET /api/appointments` (`RECEPTIONIST`, `ADMIN`)
-- `POST /api/appointments/book` (`RECEPTIONIST`, `ADMIN`)
-- `POST /api/appointments/book-flex` (`RECEPTIONIST`, `ADMIN`)
-- `POST /api/appointments/{id}/cancel` (`DOCTOR`, `RECEPTIONIST`, `ADMIN`)
-- `PATCH /api/appointments/{id}/status` (`DOCTOR`, `RECEPTIONIST`, `ADMIN`)
-- `POST /api/appointments/{id}/complete` (`DOCTOR`, `ADMIN`)
-- `GET /api/appointments/doctors` (`RECEPTIONIST`, `ADMIN`)
-- `GET /api/appointments/doctor/my` (`DOCTOR`)
-- `GET /api/appointments/doctor/today` (`DOCTOR`)
-- `POST /api/appointments/doctor/unavailable` (`DOCTOR`)
-- `DELETE /api/appointments/doctor/unavailable` (`DOCTOR`)
+- `GET /api/appointments`
+- `GET /api/appointments/paged`
+- `POST /api/appointments/book`
+- `POST /api/appointments/book-flex`
+- `POST /api/appointments/{id}/cancel`
+- `PATCH /api/appointments/{id}/status`
+- `POST /api/appointments/{id}/complete`
+- `GET /api/appointments/doctors`
+- `GET /api/appointments/doctor/my`
+- `GET /api/appointments/doctor/today`
+- `POST /api/appointments/doctor/unavailable`
+- `DELETE /api/appointments/doctor/unavailable`
 
 ### Patients
-- `POST /api/patients/register` (`RECEPTIONIST`, `DOCTOR`, `ADMIN`)
+- `POST /api/patients/register`
 - `GET /api/patients`
+- `GET /api/patients/paged`
 - `GET /api/patients/{id}`
 - `GET /api/patients/by-phone`
 - `GET /api/patients/search`
-- `PATCH /api/patients/{id}/medical-blob` (`DOCTOR`, `ADMIN`)
+- `PATCH /api/patients/{id}/medical-blob`
 
 ### Prescriptions
-- `POST /api/prescriptions/create` (`DOCTOR`, `ADMIN`)
-- `GET /api/prescriptions/pending` (`PHARMACIST`, `ADMIN`)
-- `GET /api/prescriptions/latest` (`DOCTOR`, `ADMIN`)
+- `POST /api/prescriptions/create`
+- `GET /api/prescriptions/pending`
+- `GET /api/prescriptions/queue`
+- `GET /api/prescriptions/queue/paged`
+- `GET /api/prescriptions/latest`
 
 ### Pharmacy
-- `GET /api/pharmacy/queue` (`PHARMACIST`, `ADMIN`)
-- `POST /api/pharmacy/dispense/{id}` (`PHARMACIST`, `ADMIN`)
-- `GET /api/pharmacy/inventory/alerts` (`PHARMACIST`, `ADMIN`)
-- `GET /api/pharmacy/reports/daily-summary` (`ADMIN`)
+- `GET /api/pharmacy/queue`
+- `GET /api/pharmacy/queue/paged`
+- `POST /api/pharmacy/dispense/{id}`
+- `GET /api/pharmacy/inventory/alerts`
+- `GET /api/pharmacy/reports/daily-summary`
 
 ### Medicines
-- `GET /api/medicines/search` (`DOCTOR`, `PHARMACIST`, `ADMIN`)
-- `GET /api/medicines` (`DOCTOR`, `PHARMACIST`, `ADMIN`)
-- `POST /api/medicines` (`PHARMACIST`, `ADMIN`)
-- `DELETE /api/medicines/expired/{id}` (`PHARMACIST`, `ADMIN`)
-- `DELETE /api/medicines/expired` (`PHARMACIST`, `ADMIN`)
+- `GET /api/medicines`
+- `GET /api/medicines/paged`
+- `GET /api/medicines/search`
+- `POST /api/medicines`
+- `PUT /api/medicines/{id}/stock`
+- `DELETE /api/medicines/expired/{id}`
+- `DELETE /api/medicines/expired`
 
-## 8. Security Model
+## 7. Frontend (UI) Highlights
 
-- Stateless Spring Security session policy.
-- JWT filter checks cookie first, then `Authorization` header.
-- Role-based route protection in `SecurityConfig`.
-- Additional controller method guards via `@PreAuthorize`.
-- Passwords are stored as BCrypt hashes.
-- Auth cookie is HTTP-only and `SameSite=Lax`.
+- Role-based left navigation and module rendering.
+- Receptionist booking flow:
+  - create/select patient
+  - specialization -> shift -> doctor
+  - slot-level booking and status update modal
+- Doctor workspace:
+  - today/completed/future tabs
+  - calendar view with unavailable marking
+  - consultation and prescription drafting
+- Pharmacist workspace:
+  - pending queue
+  - inventory alerts
+  - all medicines + stock updates + expired deletion
+  - add medicine
+- Admin workspace:
+  - user create/update/enable-disable/delete
+  - doctor metadata management
 
-## 9. Concurrency & Data Integrity
+## 8. Environment Configuration
 
-- Dispense flow is transactional (`@Transactional`).
-- Medicine stock rows are locked with `PESSIMISTIC_WRITE` (`findByIdWithLock`).
-- On insufficient stock, transaction rolls back (no partial deduction).
-- Appointment booking enforces slot status conflicts + daily patient-doctor active rule.
-
-## 10. Logging
-
-- Debug request/method logging exists via filters/aspects and explicit `log.debug` calls.
-- Effective behavior:
-  - `logging.level.com.medid=INFO` (default): debug logs hidden
-  - set to `DEBUG`: detailed operation logs visible
-
-## 11. Setup & Run
-
-## Prerequisites
-- Java 21
-- Node.js 18+
-- PostgreSQL 14+
-
-## Database credentials
-Create `.env` in project root (or export env vars):
+Create `.env` in project root:
 
 ```env
 DB_HOST=localhost
@@ -293,20 +224,32 @@ DB_PORT=5432
 DB_NAME=medid_db
 DB_USER=logi_admin
 DB_PASSWORD=track_pass_2026
+
+JWT_SECRET=change_this_to_a_long_random_secret
+JWT_ACCESS_EXPIRATION_MS=1800000
+JWT_REFRESH_EXPIRATION_MS=604800000
+
 SPRING_PROFILES_ACTIVE=dev
+DB_POOL_MAX=30
 ```
 
-`application.properties` imports `.env` and activates `dev` profile by default.
+`application.properties` imports `.env` via:
 
-## Backend
+```properties
+spring.config.import=optional:file:.env[.properties]
+```
+
+## 9. Run
+
+### Backend
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Backend default URL: `http://localhost:8080`
+Backend default: `http://localhost:8080`
 
-## Frontend
+### Frontend
 
 ```bash
 cd UI
@@ -314,14 +257,27 @@ npm install
 npm run dev
 ```
 
-Frontend default URL: `http://localhost:5173`
+Frontend default: `http://localhost:5173`
 
-## Build checks
+## 10. Verification Commands
 
 ```bash
 ./mvnw -q -DskipTests compile
 cd UI && npm run build
 ```
+
+## 11. Load/Resilience Testing Assets
+
+Ready-to-use files:
+- `postman/Medi-D-Resilience-Tests.postman_collection.json`
+- `postman/TESTING_GUIDE.md`
+
+Use these to validate:
+- auth/role isolation
+- JWT tampering rejection
+- double-dispense race behavior
+- stock rollback on insufficient inventory
+- backend down handling and UI error paths
 
 ## 12. Project Structure
 
@@ -339,25 +295,22 @@ cd UI && npm run build
 │   └── service
 ├── src/main/resources
 │   ├── application.properties
-│   ├── application-dev.properties
-│   └── data.sql
-└── UI
-    ├── src
-    │   ├── components
-    │   ├── modules
-    │   └── api.js
-    └── package.json
+│   └── application-dev.properties
+├── UI
+│   ├── src
+│   │   ├── components
+│   │   ├── modules
+│   │   └── api.js
+│   └── package.json
+└── postman
+    ├── Medi-D-Resilience-Tests.postman_collection.json
+    └── TESTING_GUIDE.md
 ```
 
-## 13. Notes / Caveats
+## 13. Production Hardening Checklist
 
-- `src/main/resources/data.sql` contains legacy inserts (including a `doctors` table) that may not match current entity model; treat it as optional sample data, not authoritative migration.
-- JWT secret is currently hardcoded in `JwtUtils`; move to environment variable for production.
-- `Appointment.doctorId` is scalar today; consider FK to `users` for stronger relational guarantees.
-
-## 14. Recommended Next Improvements
-
-- Introduce Flyway/Liquibase migrations for deterministic schema evolution.
-- Move JWT secret/expiry and cookie security flags to environment config.
-- Add integration tests for role authorization matrix and appointment conflict rules.
-- Convert doctor scalar reference to proper relational mapping.
+- Set `secure=true` for auth cookies under HTTPS.
+- Set strong random `JWT_SECRET` via environment.
+- Tune DB pool and JVM memory for expected concurrency.
+- Add Flyway/Liquibase migrations for deterministic schema evolution.
+- Add automated integration tests for status transitions and auth matrix.

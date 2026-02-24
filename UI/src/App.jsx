@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { createApi, getApiErrorMessage } from './api.js';
 import LoginPage from './modules/LoginPage.jsx';
 import ReceptionistDashboard from './modules/ReceptionistDashboard.jsx';
@@ -27,6 +27,7 @@ function saveAuth(auth) {
 }
 
 function roleTabs(role) {
+  // Left-nav is role-driven; each role gets only relevant operational views.
   if (role === 'RECEPTIONIST') {
     return [
       { id: 'reception-booking', label: 'Booking' },
@@ -76,13 +77,32 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [toast, setToast] = useState({ type: '', text: '' });
 
-  const api = useMemo(() => createApi(() => auth.token), [auth.token]);
+  const handleUnauthorized = useCallback(() => {
+    // Any 401 from API is treated as expired/invalid session.
+    const reset = { username: '', role: '', token: '', loggedIn: false };
+    setAuth(reset);
+    localStorage.removeItem(STORAGE_KEY);
+    setActiveTab('');
+  }, []);
+
+  const handleTokenRefresh = useCallback((token) => {
+    setAuth((prev) => {
+      const next = { ...prev, token };
+      saveAuth(next);
+      return next;
+    });
+  }, []);
+
+  const api = useMemo(
+    () => createApi(() => auth.token, handleUnauthorized, handleTokenRefresh),
+    [auth.token, handleUnauthorized, handleTokenRefresh]
+  );
 
   const notify = (type, text) => {
     setToast({ type, text });
     setTimeout(() => {
       setToast((prev) => (prev.text === text ? { type: '', text: '' } : prev));
-    }, 3000);
+    }, 8000);
   };
 
   const onLogin = async ({ username, password }) => {
@@ -104,6 +124,7 @@ export default function App() {
       setAuth(next);
       saveAuth(next);
       const availableTabs = roleTabs(next.role);
+      // Default to first allowed tab on successful login.
       setActiveTab(availableTabs[0]?.id || '');
       notify('success', `Logged in as ${next.role}`);
     } catch (error) {

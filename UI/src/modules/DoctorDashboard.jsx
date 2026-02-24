@@ -5,6 +5,14 @@ import { getApiErrorMessage } from '../api.js';
 
 const PAGE_SIZE = 8;
 
+function statusPillClass(status) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'COMPLETED') return 'bg-emerald-100 text-emerald-700';
+  if (s === 'CANCELLED') return 'bg-rose-100 text-rose-700';
+  if (s === 'UNAVAILABLE') return 'bg-slate-200 text-slate-700';
+  return 'bg-amber-100 text-amber-700';
+}
+
 function formatAppointmentTime(value) {
   if (!value) return '-';
   try {
@@ -42,7 +50,10 @@ function buildSlots() {
 }
 
 export default function DoctorDashboard({ api, notify, view = 'today' }) {
+  const today = toDateInput();
   const [queue, setQueue] = useState([]);
+  const [totalQueueItems, setTotalQueueItems] = useState(0);
+  const [totalQueuePages, setTotalQueuePages] = useState(1);
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [queueError, setQueueError] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -59,35 +70,69 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
   const [queuePage, setQueuePage] = useState(1);
 
   const [calendarDate, setCalendarDate] = useState(toDateInput());
+  const [calendarAppointments, setCalendarAppointments] = useState([]);
   const slots = useMemo(buildSlots, []);
 
   const [latestConsultation, setLatestConsultation] = useState(null);
   const [medicalBlobDraft, setMedicalBlobDraft] = useState('');
   const [savingBlob, setSavingBlob] = useState(false);
+  const [showMedicineLookup, setShowMedicineLookup] = useState(false);
+  const now = new Date();
+
+  useEffect(() => {
+    if (calendarDate < today) {
+      setCalendarDate(today);
+    }
+  }, [calendarDate, today]);
+
+  const filterQueueByView = (items, currentView) => {
+    const list = Array.isArray(items) ? items : [];
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    if (currentView === 'completed') {
+      return list.filter((item) => String(item?.status || '').toUpperCase() === 'COMPLETED');
+    }
+    if (currentView === 'future') {
+      return list.filter((item) => {
+        const status = String(item?.status || '').toUpperCase();
+        if (['CANCELLED', 'COMPLETED', 'UNAVAILABLE'].includes(status)) return false;
+        const when = item?.appointmentTime ? new Date(item.appointmentTime) : null;
+        return Boolean(when && when > now);
+      });
+    }
+    return list.filter((item) => {
+      const status = String(item?.status || '').toUpperCase();
+      const apptDate = item?.appointmentTime?.slice(0, 10);
+      return apptDate === today && (status === 'SCHEDULED' || status === 'BOOKED');
+    });
+  };
 
   const loadQueue = async () => {
     setLoadingQueue(true);
     setQueueError('');
     try {
-      const data = await api.getMyDoctorQueue();
-      setQueue(Array.isArray(data) ? data : []);
+      const all = await api.getMyDoctorQueue();
+      const filtered = filterQueueByView(all, view);
+      const start = (queuePage - 1) * PAGE_SIZE;
+      setQueue(filtered.slice(start, start + PAGE_SIZE));
+      setTotalQueueItems(filtered.length);
+      setTotalQueuePages(Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
     } catch (error) {
       setQueueError(getApiErrorMessage(error));
       setQueue([]);
+      setTotalQueueItems(0);
+      setTotalQueuePages(1);
     } finally {
       setLoadingQueue(false);
     }
   };
 
-  const loadMedicines = async () => {
-    setLoadingMedicines(true);
+  const loadCalendarAppointments = async () => {
     try {
-      const data = await api.getAllMedicines();
-      setAllMedicines(Array.isArray(data) ? data : []);
+      const data = await api.getMyDoctorQueue();
+      setCalendarAppointments(Array.isArray(data) ? data : []);
     } catch {
-      setAllMedicines([]);
-    } finally {
-      setLoadingMedicines(false);
+      setCalendarAppointments([]);
     }
   };
 
@@ -105,21 +150,25 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
   };
 
   useEffect(() => {
-    loadQueue();
-    loadMedicines();
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     const run = async () => {
       const term = medicineSearch.trim();
+      setLoadingMedicines(true);
       try {
-        const data = term ? await api.searchMedicines(term) : await api.getAllMedicines();
+        const data = term
+          ? await api.searchMedicines(term)
+          : await api.getAllMedicines();
         if (!cancelled) {
-          setAllMedicines(Array.isArray(data) ? data : []);
+          if (term) {
+            setAllMedicines(Array.isArray(data) ? data : []);
+          } else {
+            setAllMedicines(Array.isArray(data) ? data : []);
+          }
         }
       } catch {
         if (!cancelled) setAllMedicines([]);
+      } finally {
+        if (!cancelled) setLoadingMedicines(false);
       }
     };
 
@@ -132,7 +181,15 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
 
   useEffect(() => {
     setQueuePage(1);
-  }, [queue.length, view]);
+  }, [view]);
+
+  useEffect(() => {
+    if (view === 'calendar') {
+      loadCalendarAppointments();
+      return;
+    }
+    loadQueue();
+  }, [view, queuePage, calendarDate]);
 
   useEffect(() => {
     if (!selectedAppointment) {
@@ -144,43 +201,32 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
     loadLatestConsultation(selectedAppointment?.patient?.patientId);
   }, [selectedAppointment]);
 
-  const todayQueue = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return queue.filter((item) => {
-      const status = (item?.status || '').toUpperCase();
-      const apptDate = item?.appointmentTime?.slice(0, 10);
-      return apptDate === today && (status === 'SCHEDULED' || status === 'BOOKED');
-    });
-  }, [queue]);
-
-  const completedQueue = useMemo(() => {
-    return queue.filter((item) => (item?.status || '').toUpperCase() === 'COMPLETED');
-  }, [queue]);
-
-  const futureQueue = useMemo(() => {
-    const now = new Date();
-    return queue.filter((item) => {
-      const status = (item?.status || '').toUpperCase();
-      if (status === 'CANCELLED' || status === 'COMPLETED' || status === 'UNAVAILABLE') return false;
-      const time = item?.appointmentTime ? new Date(item.appointmentTime) : null;
-      return Boolean(time && time > now);
-    });
-  }, [queue]);
-
-  const activeQueue = useMemo(() => {
-    if (view === 'completed') return completedQueue;
-    if (view === 'future') return futureQueue;
-    return todayQueue;
-  }, [view, completedQueue, futureQueue, todayQueue]);
-
-  const pagedQueue = useMemo(() => {
-    const start = (queuePage - 1) * PAGE_SIZE;
-    return activeQueue.slice(start, start + PAGE_SIZE);
-  }, [activeQueue, queuePage]);
-
   const filteredMedicines = useMemo(() => {
-    return allMedicines;
-  }, [allMedicines, medicineSearch]);
+    const grouped = new Map();
+    allMedicines.forEach((med) => {
+      const key = String(med?.name || '').trim().toLowerCase();
+      if (!key) return;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          medicineId: med.medicineId,
+          name: med.name,
+          stockCount: Number(med.stockCount || 0),
+          expiryDate: med.expiryDate || null
+        });
+        return;
+      }
+      const current = grouped.get(key);
+      current.stockCount += Number(med.stockCount || 0);
+      const currentExpiry = current.expiryDate ? new Date(current.expiryDate) : null;
+      const medExpiry = med.expiryDate ? new Date(med.expiryDate) : null;
+      if (!currentExpiry || (medExpiry && medExpiry < currentExpiry)) {
+        current.medicineId = med.medicineId;
+        current.expiryDate = med.expiryDate || null;
+      }
+      grouped.set(key, current);
+    });
+    return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allMedicines]);
 
   const selectedMedicine = useMemo(
     () => filteredMedicines.find((m) => String(m.medicineId) === String(selectedMedicineId)),
@@ -188,8 +234,9 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
   );
 
   const calendarOccupied = useMemo(() => {
+    // Calendar blocks only actionable statuses (booked/scheduled/unavailable).
     const occupied = new Map();
-    queue.forEach((item) => {
+    calendarAppointments.forEach((item) => {
       const day = item?.appointmentTime?.slice(0, 10);
       if (day !== calendarDate) return;
       const status = (item?.status || '').toUpperCase();
@@ -198,7 +245,7 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
       }
     });
     return occupied;
-  }, [queue, calendarDate]);
+  }, [calendarAppointments, calendarDate]);
 
   const addSelectedMedicine = () => {
     if (!selectedMedicine) {
@@ -212,16 +259,24 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
       return;
     }
 
-    setDraftMedicines((prev) => [
-      ...prev,
-      {
-        medicineId: selectedMedicine.medicineId,
-        medicineName: selectedMedicine.name,
-        quantity: qty,
-        instructions: 'After food'
+    setDraftMedicines((prev) => {
+      const index = prev.findIndex((item) => String(item.medicineName).toLowerCase() === String(selectedMedicine.name).toLowerCase());
+      if (index < 0) {
+        return [
+          ...prev,
+          {
+            medicineId: selectedMedicine.medicineId,
+            medicineName: selectedMedicine.name,
+            quantity: qty,
+            instructions: 'After food'
+          }
+        ];
       }
-    ]);
+      return prev.map((item, i) => (i === index ? { ...item, quantity: item.quantity + qty } : item));
+    });
   };
+  const canAddMedicine = Boolean(selectedMedicineId && Number(quantity) >= 1);
+  const canPrescribe = Boolean(selectedAppointment && String(selectedAppointment.status || '').toUpperCase() !== 'COMPLETED');
 
   const removeDraftMedicine = (index) => {
     setDraftMedicines((prev) => prev.filter((_, i) => i !== index));
@@ -236,6 +291,15 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     }
+  };
+
+  const statusOptionsFor = (currentStatus) => {
+    const current = String(currentStatus || '').toUpperCase();
+    if (current === 'COMPLETED') return ['COMPLETED'];
+    if (current === 'CANCELLED') return ['CANCELLED'];
+    if (current === 'SCHEDULED' || current === 'BOOKED') return ['SCHEDULED', 'CANCELLED', 'COMPLETED'];
+    if (current === 'UNAVAILABLE') return ['UNAVAILABLE', 'CANCELLED'];
+    return ['SCHEDULED', 'COMPLETED', 'CANCELLED'];
   };
 
   const saveMedicalBlob = async () => {
@@ -256,6 +320,10 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
   const submitPrescription = async () => {
     if (!selectedAppointment) {
       notify('error', 'Select a patient first.');
+      return;
+    }
+    if (!canPrescribe) {
+      notify('error', 'Completed appointments cannot be prescribed again.');
       return;
     }
     if (!diagnosisNotes.trim() || draftMedicines.length === 0) {
@@ -287,11 +355,12 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
   };
 
   const onMarkUnavailable = async (slot) => {
+    // Doctor marks slot-level availability from calendar view.
     const slotDateTime = `${calendarDate}T${slot}`;
     try {
       await api.markDoctorUnavailable(slotDateTime);
       notify('success', 'Slot marked unavailable.');
-      await loadQueue();
+      await loadCalendarAppointments();
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     }
@@ -302,7 +371,7 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
     try {
       await api.clearDoctorUnavailable(slotDateTime);
       notify('success', 'Unavailable slot cleared.');
-      await loadQueue();
+      await loadCalendarAppointments();
     } catch (error) {
       notify('error', getApiErrorMessage(error));
     }
@@ -318,8 +387,8 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
               <p className="mt-1 text-sm text-slate-500">Mark your slots unavailable or clear unavailable slots.</p>
             </div>
             <div className="flex gap-2">
-              <input type="date" className="field" value={calendarDate} onChange={(e) => setCalendarDate(e.target.value)} />
-              <button className="btn-ghost" onClick={loadQueue}>Refresh</button>
+              <input type="date" min={today} className="field" value={calendarDate} onChange={(e) => setCalendarDate(e.target.value)} />
+              <button className="btn-ghost" onClick={loadCalendarAppointments}>Refresh</button>
             </div>
           </div>
         </div>
@@ -336,23 +405,25 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
               const status = (occupied?.status || '').toUpperCase();
               const isUnavailable = status === 'UNAVAILABLE';
               const isBooked = status === 'SCHEDULED' || status === 'BOOKED';
+              const isPast = new Date(`${calendarDate}T${slot}:00`) < now;
 
               return (
                 <div
                   key={slot}
-                  className={`rounded-lg border p-3 text-sm ${isUnavailable ? 'border-slate-300 bg-slate-200 text-slate-700' : isBooked ? 'border-red-300 bg-red-100 text-red-800' : 'border-emerald-300 bg-emerald-100 text-emerald-800'}`}
+                  className={`rounded-lg border p-3 text-sm ${isPast ? 'border-slate-300 bg-slate-100 text-slate-500' : isUnavailable ? 'border-slate-300 bg-slate-200 text-slate-700' : isBooked ? 'border-red-300 bg-red-100 text-red-800' : 'border-emerald-300 bg-emerald-100 text-emerald-800'}`}
                 >
                   <p className="font-semibold">{slot}</p>
+                  {isPast ? <p className="mt-1 text-xs">Past slot</p> : null}
                   {isUnavailable ? <p className="mt-1 text-xs">Unavailable</p> : null}
                   {isBooked ? <p className="mt-1 text-xs">Booked: {occupied?.patient?.fullName || 'Patient'}</p> : null}
                   {!occupied ? <p className="mt-1 text-xs">Available</p> : null}
 
                   <div className="mt-2">
                     {!occupied ? (
-                      <button className="btn-ghost" onClick={() => onMarkUnavailable(slot)}>Mark Unavailable</button>
+                      <button className="btn-ghost" onClick={() => onMarkUnavailable(slot)} disabled={isPast}>Mark Unavailable</button>
                     ) : null}
                     {isUnavailable ? (
-                      <button className="btn-ghost" onClick={() => onClearUnavailable(slot)}>Clear Unavailable</button>
+                      <button className="btn-ghost" onClick={() => onClearUnavailable(slot)} disabled={isPast}>Clear Unavailable</button>
                     ) : null}
                   </div>
                 </div>
@@ -386,12 +457,12 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
             <AsyncState
               loading={loadingQueue}
               error={queueError}
-              empty={!loadingQueue && !queueError && activeQueue.length === 0}
+              empty={!loadingQueue && !queueError && queue.length === 0}
               emptyMessage={view === 'completed' ? 'No completed appointments.' : view === 'future' ? 'No future appointments.' : 'No scheduled patients for today.'}
             />
 
-            {!loadingQueue && !queueError && activeQueue.length > 0 ? (
-              pagedQueue.map((item) => (
+            {!loadingQueue && !queueError && queue.length > 0 ? (
+              queue.map((item) => (
                 <button
                   key={item.appointmentId}
                   onClick={() => { setSelectedAppointment(item); setAppointmentTab('summary'); }}
@@ -400,11 +471,12 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
                   <p className="font-semibold text-slate-900">{item?.patient?.fullName || 'Slot Block'}</p>
                   <p className="text-sm text-slate-500">Phone: {item?.patient?.phoneNumber || '-'}</p>
                   <p className="text-sm text-slate-500">Time: {formatAppointmentTime(item?.appointmentTime)}</p>
+                  <p className="mt-2"><span className={`pill ${statusPillClass(item?.status)}`}>{item?.status || 'SCHEDULED'}</span></p>
                   <p className="mt-2 text-xs text-slate-500">Appointment ID: {item.appointmentId}</p>
                 </button>
               ))
             ) : null}
-            <Pagination page={queuePage} pageSize={PAGE_SIZE} totalItems={activeQueue.length} onPageChange={setQueuePage} />
+            <Pagination page={queuePage} pageSize={PAGE_SIZE} totalItems={totalQueueItems} totalPages={totalQueuePages} onPageChange={setQueuePage} />
           </div>
         </div>
 
@@ -422,7 +494,7 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                     <p className="font-semibold text-slate-900">{selectedAppointment?.patient?.fullName || 'Unknown Patient'}</p>
                     <p>Appointment ID: {selectedAppointment.appointmentId}</p>
-                    <p>Status: {selectedAppointment.status}</p>
+                    <p>Status: <span className={`pill ${statusPillClass(selectedAppointment.status)}`}>{selectedAppointment.status}</span></p>
                     <p>Time: {formatAppointmentTime(selectedAppointment?.appointmentTime)}</p>
                   </div>
 
@@ -435,9 +507,9 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Update Status</label>
                     <select className="field" defaultValue={selectedAppointment.status || 'SCHEDULED'} onChange={(e) => updateStatus(e.target.value)}>
-                      <option value="SCHEDULED">SCHEDULED</option>
-                      <option value="COMPLETED">COMPLETED</option>
-                      <option value="CANCELLED">CANCELLED</option>
+                      {statusOptionsFor(selectedAppointment.status).map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -465,26 +537,41 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
 
                   <div className="rounded-xl border border-slate-200 p-3">
                     <label className="mb-2 block text-sm font-medium text-slate-700">Select Medicines</label>
-                    <input
-                      className="field"
-                      placeholder="Search medicine"
-                      value={medicineSearch}
-                      onChange={(e) => setMedicineSearch(e.target.value)}
-                    />
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                      <select
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <input
                         className="field"
-                        value={selectedMedicineId}
-                        onChange={(e) => setSelectedMedicineId(e.target.value)}
-                        disabled={loadingMedicines}
-                      >
-                        <option value="">Select medicine</option>
-                        {filteredMedicines.map((med) => (
-                          <option key={med.medicineId} value={med.medicineId}>{med.name} (Stock: {med.stockCount})</option>
+                        placeholder="Type medicine name"
+                        value={medicineSearch}
+                        onChange={(e) => {
+                          setMedicineSearch(e.target.value);
+                          setShowMedicineLookup(true);
+                        }}
+                      />
+                      <button className="btn-ghost" type="button" onClick={() => setShowMedicineLookup((s) => !s)}>
+                        {showMedicineLookup ? 'Hide' : 'Search'}
+                      </button>
+                    </div>
+                    {showMedicineLookup && filteredMedicines.length > 0 ? (
+                      <div className="mt-2 max-h-44 overflow-auto rounded-lg border border-slate-200 bg-white">
+                        {filteredMedicines.slice(0, 12).map((med) => (
+                          <button
+                            key={med.medicineId}
+                            type="button"
+                            className={`block w-full border-b border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50 ${String(selectedMedicineId) === String(med.medicineId) ? 'bg-med-50 text-med-700' : 'text-slate-700'}`}
+                            onClick={() => {
+                              setSelectedMedicineId(String(med.medicineId));
+                              setShowMedicineLookup(false);
+                            }}
+                          >
+                            {med.name}
+                          </button>
                         ))}
-                      </select>
+                      </div>
+                    ) : null}
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                      <input className="field" value={selectedMedicine?.name || ''} readOnly placeholder="Selected medicine" />
                       <input className="field w-24" type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-                      <button className="btn-ghost" onClick={addSelectedMedicine}>Add</button>
+                      <button className="btn-ghost" onClick={addSelectedMedicine} disabled={!canAddMedicine || !canPrescribe}>Add</button>
                     </div>
                   </div>
 
@@ -504,7 +591,7 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
                     )}
                   </div>
 
-                  <button className="btn-primary w-full" onClick={submitPrescription} disabled={submitting}>
+                  <button className="btn-primary w-full" onClick={submitPrescription} disabled={submitting || !canPrescribe}>
                     {submitting ? 'Submitting...' : 'Create Prescription'}
                   </button>
                 </div>

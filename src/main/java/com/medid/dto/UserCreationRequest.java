@@ -8,5 +8,8 @@ public class UserCreationRequest {
     private String password;
     private String role; // e.g., "ROLE_DOCTOR"
     private Long doctorId;
+    private String doctorRefCode;
     private String specialization;
+    private String weekdayShift;
+    private String weekendShift;
 }

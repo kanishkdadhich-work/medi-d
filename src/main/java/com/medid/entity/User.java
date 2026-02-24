@@ -34,8 +34,17 @@ public class User implements UserDetails {
     @Column(name = "doctor_id")
     private Long doctorId;
 
+    @Column(name = "doctor_ref_code", unique = true)
+    private String doctorRefCode; // Human-facing doctor code e.g. MEDID-12
+
     @Column(name = "specialization")
     private String specialization;
+
+    @Column(name = "weekday_shift")
+    private String weekdayShift; // MORNING | EVENING | NIGHT
+
+    @Column(name = "weekend_shift")
+    private String weekendShift; // MORNING | EVENING | NIGHT
 
     @Column(name = "enabled")
     private Boolean enabled = true;

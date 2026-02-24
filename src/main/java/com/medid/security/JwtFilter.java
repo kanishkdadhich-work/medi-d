@@ -20,10 +20,12 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final RevokedTokenService revokedTokenService;
 
-    public JwtFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService) {
+    public JwtFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService, RevokedTokenService revokedTokenService) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.revokedTokenService = revokedTokenService;
     }
 
     @Override
@@ -31,27 +33,27 @@ public class JwtFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String token = null;
+        String fingerprint = null;
+        String userAgentHash = FingerprintUtils.fromUserAgent(request.getHeader("User-Agent"));
 
-        // 1. Look for the JWT in Cookies
+        // 1) Prefer HTTP-only auth cookie.
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
                 if ("medid_token".equals(cookie.getName())) {
                     token = cookie.getValue();
-                    break;
+                }
+                if ("medid_fp".equals(cookie.getName())) {
+                    fingerprint = cookie.getValue();
                 }
             }
         }
 
-        // 2. Fallback to Authorization header if cookie is not available.
-        if (token == null || token.isBlank()) {
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                token = authHeader.substring(7);
-            }
-        }
-
-        // 3. If token found, validate and set Security Context
-        if (token != null && jwtUtils.validateToken(token)) {
+        // 2) If token is valid, not revoked, and fingerprint-bound, authenticate request.
+        if (token != null
+                && fingerprint != null
+                && !fingerprint.isBlank()
+                && !revokedTokenService.isRevoked(token)
+                && jwtUtils.validateAccessToken(token, fingerprint, userAgentHash)) {
             String username = jwtUtils.getUsernameFromToken(token);
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
@@ -60,7 +62,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-            // This is what officially "logs in" the user for this specific request
+            // Marks the current request as authenticated for downstream authorization rules.
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 

@@ -19,11 +19,13 @@ public class ApplicationSecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+        // BCrypt is used for one-way password hashing.
         return new BCryptPasswordEncoder();
     }
 
     @Bean
     public UserDetailsService userDetailsService() {
+        // Spring Security principal loading backed by users table.
         return username -> userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }

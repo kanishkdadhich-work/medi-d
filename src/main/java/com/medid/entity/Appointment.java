@@ -17,11 +17,10 @@ public class Appointment {
     @JoinColumn(name = "patient_id")
     private Patient patient;
 
-    private Long doctorId; // In a full system, this would be a @ManyToOne Doctor doctor
+    private Long doctorId;
 
     @Column(nullable = false)
     private LocalDateTime appointmentTime;
 
-    // Requirement 3.3: Status Tracking (BOOKED, COMPLETED, CANCELLED)
     private String status = "BOOKED";
 }

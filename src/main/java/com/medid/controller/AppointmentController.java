@@ -2,10 +2,12 @@ package com.medid.controller;
 
 import com.medid.dto.AppointmentViewDTO;
 import com.medid.dto.DoctorRefDTO;
+import com.medid.dto.PagedResponse;
 import com.medid.dto.PatientViewDTO;
 import com.medid.entity.Appointment;
 import com.medid.entity.User;
 import com.medid.enums.Role;
+import com.medid.exception.ConflictException;
 import com.medid.repository.AppointmentRepository;
 import com.medid.repository.UserRepository;
 import com.medid.service.IAppointmentService;
@@ -13,6 +15,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -67,7 +73,16 @@ public class AppointmentController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('DOCTOR','RECEPTIONIST','ADMIN')")
-    public ResponseEntity<String> updateAppointmentStatus(@PathVariable Long id, @RequestParam String status) {
+    public ResponseEntity<String> updateAppointmentStatus(@PathVariable Long id,
+                                                          @RequestParam String status,
+                                                          Authentication authentication) {
+        Appointment existing = appointmentRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+        String current = String.valueOf(existing.getStatus() == null ? "" : existing.getStatus()).toUpperCase();
+        User user = authentication != null && authentication.getPrincipal() instanceof User u ? u : null;
+        if ("UNAVAILABLE".equals(current) && (user == null || user.getRole() != Role.DOCTOR)) {
+            throw new ConflictException("Only doctors can change UNAVAILABLE slots.");
+        }
         log.debug("Updating appointment status id={}, status={}", id, status);
         appointmentService.updateStatus(id, status);
         return ResponseEntity.ok("Appointment status updated successfully.");
@@ -76,12 +91,40 @@ public class AppointmentController {
     @GetMapping
     @PreAuthorize("hasAnyRole('RECEPTIONIST','ADMIN')")
     public ResponseEntity<List<AppointmentViewDTO>> getAllAppointments(Authentication authentication) {
+        // Medical blob exposure is role-dependent (doctor/admin only).
         boolean includeMedical = hasMedicalAccess(authentication);
         log.debug("Fetching all appointments includeMedical={}", includeMedical);
         List<AppointmentViewDTO> result = appointmentRepo.findAll().stream()
                 .map(a -> toViewDto(a, includeMedical))
                 .toList();
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/paged")
+    @PreAuthorize("hasAnyRole('RECEPTIONIST','ADMIN')")
+    public ResponseEntity<PagedResponse<AppointmentViewDTO>> getAllAppointmentsPaged(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "appointmentTime") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction
+    ) {
+        boolean includeMedical = hasMedicalAccess(authentication);
+        Sort sort = "asc".equalsIgnoreCase(direction)
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<AppointmentViewDTO> mapped = appointmentRepo.findAll(pageable).map(a -> toViewDto(a, includeMedical));
+
+        return ResponseEntity.ok(new PagedResponse<>(
+                mapped.getContent(),
+                mapped.getNumber(),
+                mapped.getSize(),
+                mapped.getTotalElements(),
+                mapped.getTotalPages(),
+                mapped.isFirst(),
+                mapped.isLast()
+        ));
     }
 
     @GetMapping("/doctor/today")
@@ -98,7 +141,10 @@ public class AppointmentController {
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<List<AppointmentViewDTO>> getMyConsultations(Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        Long doctorId = user.getDoctorId() != null ? user.getDoctorId() : user.getId();
+        if (user.getDoctorId() == null) {
+            throw new RuntimeException("Doctor profile is not linked. Please contact admin.");
+        }
+        Long doctorId = user.getDoctorId();
         log.debug("Fetching authenticated doctor consultations username={}, doctorId={}", user.getUsername(), doctorId);
         List<AppointmentViewDTO> result = appointmentService.getAppointmentsByDoctor(doctorId).stream()
                 .map(a -> toViewDto(a, true))
@@ -111,11 +157,16 @@ public class AppointmentController {
     public ResponseEntity<List<DoctorRefDTO>> getDoctors() {
         log.debug("Fetching doctor references for receptionist/admin");
         List<DoctorRefDTO> doctors = userRepository.findByRole(Role.DOCTOR).stream()
+                .filter(u -> u.getDoctorId() != null)
+                .filter(u -> u.getEnabled() == null || u.getEnabled())
                 .map(u -> new DoctorRefDTO(
-                        u.getDoctorId() != null ? u.getDoctorId() : u.getId(),
+                        u.getDoctorId(),
                         u.getId(),
                         u.getUsername(),
-                        u.getSpecialization()
+                        u.getDoctorRefCode(),
+                        u.getSpecialization(),
+                        u.getWeekdayShift(),
+                        u.getWeekendShift()
                 ))
                 .toList();
         return ResponseEntity.ok(doctors);
@@ -125,8 +176,12 @@ public class AppointmentController {
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<AppointmentViewDTO> markUnavailable(Authentication authentication,
                                                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime slot) {
+        // Doctor identity is always derived from token, never from request payload.
         User user = (User) authentication.getPrincipal();
-        Long doctorId = user.getDoctorId() != null ? user.getDoctorId() : user.getId();
+        if (user.getDoctorId() == null) {
+            throw new RuntimeException("Doctor profile is not linked. Please contact admin.");
+        }
+        Long doctorId = user.getDoctorId();
         Appointment appointment = appointmentService.markUnavailable(doctorId, slot);
         return ResponseEntity.ok(toViewDto(appointment, true));
     }
@@ -136,7 +191,10 @@ public class AppointmentController {
     public ResponseEntity<String> clearUnavailable(Authentication authentication,
                                                    @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime slot) {
         User user = (User) authentication.getPrincipal();
-        Long doctorId = user.getDoctorId() != null ? user.getDoctorId() : user.getId();
+        if (user.getDoctorId() == null) {
+            throw new RuntimeException("Doctor profile is not linked. Please contact admin.");
+        }
+        Long doctorId = user.getDoctorId();
         appointmentService.clearUnavailable(doctorId, slot);
         return ResponseEntity.ok("Unavailable slot cleared");
     }

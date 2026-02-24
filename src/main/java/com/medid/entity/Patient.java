@@ -1,6 +1,7 @@
 package com.medid.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -13,6 +14,7 @@ public class Patient {
     private Long patientId;
 
     @Column(nullable = false)
+    @Size(max = 255, message = "fullName cannot exceed 255 characters")
     private String fullName;
 
     @Column(nullable = false, unique = true)

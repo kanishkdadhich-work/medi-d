@@ -1,0 +1,294 @@
+{
+  "info": {
+    "name": "Medi-D Resilience & Security Tests",
+    "description": "Covers security/auth, business edge cases, stress endpoint checks, and DB integrity probes.\n\nManual-only checks (frontend UX): token-expiry redirect, backend-down UI messaging, rapid-click duplicate prevention.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = new Date();",
+          "const future = new Date(now.getTime() + 24 * 60 * 60 * 1000);",
+          "const fmt = (d) => d.toISOString().slice(0,19);",
+          "pm.collectionVariables.set('futureSlot', fmt(future));",
+          "pm.collectionVariables.set('pastSlot', '2020-01-01T10:00:00');",
+          "pm.collectionVariables.set('longPatientName', 'X'.repeat(5000));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "adminUsername", "value": "admin_system" },
+    { "key": "adminPassword", "value": "password" },
+    { "key": "doctorUsername", "value": "doc_alice" },
+    { "key": "doctorPassword", "value": "password" },
+    { "key": "pharmacistUsername", "value": "pharm_bob" },
+    { "key": "pharmacistPassword", "value": "password" },
+    { "key": "adminToken", "value": "" },
+    { "key": "doctorToken", "value": "" },
+    { "key": "pharmacistToken", "value": "" },
+    { "key": "tamperedToken", "value": "" },
+    { "key": "doctorRef", "value": "1" },
+    { "key": "ghostPatientId", "value": "999999" },
+    { "key": "validAppointmentId", "value": "1" },
+    { "key": "dispensePrescriptionId", "value": "1" },
+    { "key": "deleteUserId", "value": "2" }
+  ],
+  "item": [
+    {
+      "name": "00 Auth Bootstrap",
+      "item": [
+        {
+          "name": "Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('Admin login success', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const json = pm.response.json();",
+              "if (json && json.token) pm.collectionVariables.set('adminToken', json.token);"
+            ] }
+          }]
+        },
+        {
+          "name": "Login Doctor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{doctorUsername}}\",\n  \"password\": \"{{doctorPassword}}\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('Doctor login success', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const json = pm.response.json();",
+              "if (json && json.token) pm.collectionVariables.set('doctorToken', json.token);"
+            ] }
+          }]
+        },
+        {
+          "name": "Login Pharmacist",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{pharmacistUsername}}\",\n  \"password\": \"{{pharmacistPassword}}\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "type": "text/javascript", "exec": [
+              "pm.test('Pharmacist login success', function(){ pm.expect(pm.response.code).to.be.oneOf([200,201]); });",
+              "const json = pm.response.json();",
+              "if (json && json.token) pm.collectionVariables.set('pharmacistToken', json.token);"
+            ] }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "01 Security & Authentication",
+      "item": [
+        {
+          "name": "Admin endpoint without token",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/admin/overview" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Rejected without token', function(){ pm.expect(pm.response.code).to.be.oneOf([401,403]); });"
+          ] }}]
+        },
+        {
+          "name": "Admin endpoint with doctor token",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{doctorToken}}" }],
+            "url": "{{baseUrl}}/api/admin/overview"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Doctor forbidden from admin endpoint', function(){ pm.expect(pm.response.code).to.be.oneOf([401,403]); });"
+          ] }}]
+        },
+        {
+          "name": "Tampered JWT rejected",
+          "event": [{
+            "listen": "prerequest",
+            "script": { "type": "text/javascript", "exec": [
+              "const token = pm.collectionVariables.get('doctorToken') || '';",
+              "if (!token || token.length < 10) { throw new Error('doctorToken missing. Run Login Doctor first.'); }",
+              "const i = token.length - 2;",
+              "const ch = token[i] === 'a' ? 'b' : 'a';",
+              "const tampered = token.slice(0, i) + ch + token.slice(i + 1);",
+              "pm.collectionVariables.set('tamperedToken', tampered);"
+            ] }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{tamperedToken}}" }],
+            "url": "{{baseUrl}}/api/admin/overview"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Tampered token is rejected', function(){ pm.expect(pm.response.code).to.be.oneOf([401,403]); });"
+          ] }}]
+        },
+        {
+          "name": "Case sensitivity login check",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"ADMIN_SYSTEM\",\n  \"password\": \"{{adminPassword}}\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Case-variant username should fail unless explicitly created', function(){ pm.expect(pm.response.code).to.be.oneOf([401,403]); });"
+          ] }}]
+        },
+        {
+          "name": "Rate limiting probe (single request)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"invalid-user\",\n  \"password\": \"invalid\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Returns auth failure or rate limit', function(){ pm.expect(pm.response.code).to.be.oneOf([401,429]); });",
+            "// Use Collection Runner with high iteration/concurrency to observe 429 behavior."
+          ] }}]
+        }
+      ]
+    },
+    {
+      "name": "02 Business Logic & Edge Cases",
+      "item": [
+        {
+          "name": "Ghost patient booking",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/appointments/book-flex?patientId={{ghostPatientId}}&doctor={{doctorRef}}&slot={{futureSlot}}"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Ghost patient should be rejected', function(){ pm.expect(pm.response.code).to.be.oneOf([400,404,409]); });"
+          ] }}]
+        },
+        {
+          "name": "Past date appointment booking",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/appointments/book-flex?patientId=1&doctor={{doctorRef}}&slot={{pastSlot}}"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Past slot rejected', function(){ pm.expect(pm.response.code).to.be.oneOf([400,409]); });"
+          ] }}]
+        },
+        {
+          "name": "Create prescription with quantity -5",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{doctorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"appointmentId\": {{validAppointmentId}},\n  \"diagnosisNotes\": \"Validation test\",\n  \"items\": [\n    {\n      \"medicineId\": 1,\n      \"quantity\": -5,\n      \"instructions\": \"test\"\n    }\n  ]\n}" },
+            "url": "{{baseUrl}}/api/prescriptions/create"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Negative quantity rejected', function(){ pm.expect(pm.response.code).to.equal(400); });"
+          ] }}]
+        },
+        {
+          "name": "Create prescription with quantity 0",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{doctorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"appointmentId\": {{validAppointmentId}},\n  \"diagnosisNotes\": \"Validation test\",\n  \"items\": [\n    {\n      \"medicineId\": 1,\n      \"quantity\": 0,\n      \"instructions\": \"test\"\n    }\n  ]\n}" },
+            "url": "{{baseUrl}}/api/prescriptions/create"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Zero quantity rejected', function(){ pm.expect(pm.response.code).to.equal(400); });"
+          ] }}]
+        },
+        {
+          "name": "Double dispense race - Request A",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{pharmacistToken}}" }],
+            "url": "{{baseUrl}}/api/pharmacy/dispense/{{dispensePrescriptionId}}"
+          }
+        },
+        {
+          "name": "Double dispense race - Request B",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{pharmacistToken}}" }],
+            "url": "{{baseUrl}}/api/pharmacy/dispense/{{dispensePrescriptionId}}"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "// Run A and B simultaneously in separate tabs/windows.",
+            "pm.test('Second should fail if first succeeded', function(){ pm.expect(pm.response.code).to.be.oneOf([200,400,409]); });"
+          ] }}]
+        }
+      ]
+    },
+    {
+      "name": "03 API Bombing / Stress",
+      "item": [
+        {
+          "name": "Queue endpoint smoke (for load target)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{pharmacistToken}}" }],
+            "url": "{{baseUrl}}/api/prescriptions/queue"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Queue endpoint is reachable', function(){ pm.expect(pm.response.code).to.be.oneOf([200,204]); });",
+            "// Use JMeter/Locust for 500 concurrent requests against this endpoint."
+          ] }}]
+        }
+      ]
+    },
+    {
+      "name": "04 Database Integrity",
+      "item": [
+        {
+          "name": "Long patient name (5000 chars)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"{{longPatientName}}\",\n  \"phoneNumber\": \"9876543000\",\n  \"gender\": \"NA\",\n  \"medicalHistoryBlob\": \"long-name-test\"\n}" },
+            "url": "{{baseUrl}}/api/patients/register"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Long patient name is rejected safely', function(){ pm.expect(pm.response.code).to.equal(400); });"
+          ] }}]
+        },
+        {
+          "name": "Delete user (orphan check)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/admin/users/{{deleteUserId}}"
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Delete user returns success or conflict safely', function(){ pm.expect(pm.response.code).to.be.oneOf([200,400,404,409]); });"
+          ] }}]
+        }
+      ]
+    }
+  ]
+}

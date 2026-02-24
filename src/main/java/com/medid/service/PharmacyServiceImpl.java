@@ -31,7 +31,8 @@ public class PharmacyServiceImpl implements IPharmacyService {
         log.debug("Dispense prescription request prescriptionId={}", prescriptionId);
         // 1. Fetch the prescription
 
-        Prescription prescription = prescriptionRepo.findById(prescriptionId)
+        // Lock prescription row to prevent double-dispense races.
+        Prescription prescription = prescriptionRepo.findByIdWithLock(prescriptionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Prescription not found with ID: " + prescriptionId));
 
         if (prescription.getStatus() == PrescriptionStatus.DISPENSED) {
@@ -47,27 +48,36 @@ public class PharmacyServiceImpl implements IPharmacyService {
 
         // 3. Process each item in the prescription
         for (PrescriptionItem item : prescription.getItems()) {
+            String medicineName = item.getMedicine().getName();
+            int requestedQty = item.getQuantity();
 
-            // Requirement 2.6: Pessimistic Locking - locks the medicine row in DB
-            Medicine med = medicineRepo.findByIdWithLock(item.getMedicine().getMedicineId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Medicine not found: " + item.getMedicine().getName()));
-
-            // 4. Validate stock levels
-            if (med.getStockCount() < item.getQuantity()) {
-                log.debug("Insufficient stock medicineId={}, available={}, required={}",
-                        med.getMedicineId(), med.getStockCount(), item.getQuantity());
-                // Throwing this triggers the @Transactional rollback and the Global Exception Handler
-                throw new InsufficientStockException("Insufficient stock for: " + med.getName() +
-                        ". Available: " + med.getStockCount() +
-                        ", Required: " + item.getQuantity());
+            // FEFO: consume earliest-expiring batch first for same medicine name.
+            List<Medicine> batches = medicineRepo.findByNameIgnoreCaseOrderByExpiryForDispenseWithLock(medicineName);
+            if (batches.isEmpty()) {
+                throw new ResourceNotFoundException("Medicine not found: " + medicineName);
             }
 
-            // 5. Deduct stock
-            med.setStockCount(med.getStockCount() - item.getQuantity());
-            log.debug("Stock deducted medicineId={}, newStock={}", med.getMedicineId(), med.getStockCount());
+            int totalAvailable = batches.stream().mapToInt(m -> m.getStockCount() == null ? 0 : m.getStockCount()).sum();
+            if (totalAvailable < requestedQty) {
+                log.debug("Insufficient FEFO stock medicine={}, available={}, required={}",
+                        medicineName, totalAvailable, requestedQty);
+                throw new InsufficientStockException("Insufficient stock for: " + medicineName +
+                        ". Available: " + totalAvailable +
+                        ", Required: " + requestedQty);
+            }
 
-            // 6. Save updated medicine (row remains locked until method ends)
-            medicineRepo.save(med);
+            int remaining = requestedQty;
+            for (Medicine batch : batches) {
+                if (remaining <= 0) break;
+                int stock = batch.getStockCount() == null ? 0 : batch.getStockCount();
+                if (stock <= 0) continue;
+                int consume = Math.min(stock, remaining);
+                batch.setStockCount(stock - consume);
+                remaining -= consume;
+                log.debug("FEFO deducted medicineId={}, consumed={}, newStock={}, expiry={}",
+                        batch.getMedicineId(), consume, batch.getStockCount(), batch.getExpiryDate());
+                medicineRepo.save(batch);
+            }
         }
 
         // 7. Update prescription status

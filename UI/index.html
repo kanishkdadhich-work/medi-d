@@ -4,6 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Medi-D Control Center</title>
+    <script>
+      (function () {
+        function showBootError(message) {
+          var root = document.getElementById('root');
+          if (!root) return;
+          root.innerHTML =
+            '<main style="min-height:100vh;background:#f8fafc;padding:24px;font-family:system-ui,sans-serif;">' +
+            '<section style="max-width:960px;margin:0 auto;background:#fff;border:1px solid #fecaca;border-radius:12px;padding:20px;">' +
+            '<h1 style="margin:0 0 8px;color:#b91c1c;font-size:22px;">UI Boot Error</h1>' +
+            '<p style="margin:0 0 10px;color:#334155;">Application failed during startup.</p>' +
+            '<pre style="white-space:pre-wrap;background:#fef2f2;border:1px solid #fecaca;padding:10px;border-radius:8px;color:#7f1d1d;">' + String(message || 'Unknown startup error') + '</pre>' +
+            '</section></main>';
+        }
+
+        window.__medidBootError = showBootError;
+        window.addEventListener('error', function (event) {
+          if (event && event.message) showBootError(event.message);
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event && event.reason;
+          showBootError(reason && reason.message ? reason.message : String(reason || 'Unhandled promise rejection'));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

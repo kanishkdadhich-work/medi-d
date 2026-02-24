@@ -3,6 +3,8 @@ package com.medid.service;
 import com.medid.entity.Patient;
 import com.medid.repository.PatientRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,13 @@ public class PatientServiceImpl implements IPatientService {
     @Override
     public Patient registerPatient(Patient patient) {
         log.debug("Register patient request fullName={}, phone={}", patient.getFullName(), patient.getPhoneNumber());
+        // Defensive limits keep payloads within safe/expected bounds.
+        if (patient.getFullName() == null || patient.getFullName().isBlank()) {
+            throw new IllegalArgumentException("Patient full name is required.");
+        }
+        if (patient.getFullName().length() > 255) {
+            throw new IllegalArgumentException("Patient full name cannot exceed 255 characters.");
+        }
         // Basic Validation (Requirement 1)
         if (patient.getPhoneNumber() == null || !patient.getPhoneNumber().matches("\\d{10}")) {
             throw new RuntimeException("Invalid Phone Number. Must be 10 digits.");
@@ -42,6 +51,11 @@ public class PatientServiceImpl implements IPatientService {
         List<Patient> all = patientRepo.findAll();
         log.debug("Fetched all patients count={}", all.size());
         return all;
+    }
+
+    @Override
+    public Page<Patient> getAllPatients(Pageable pageable) {
+        return patientRepo.findAll(pageable);
     }
 
     @Override

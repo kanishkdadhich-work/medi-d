@@ -18,7 +18,7 @@ function toApiError(status, payload) {
 
   return {
     status,
-    message: payload?.message || payload?.error || `HTTP ${status}`,
+    message: payload?.message || payload?.error || `Request failed (${status})`,
     error_code: payload?.error_code || payload?.code || 'HTTP_ERROR',
     details: payload?.details || null,
     raw: payload || null
@@ -31,8 +31,8 @@ function toLocalDateTime(slotValue) {
   return slotValue;
 }
 
-export function createApi(getToken) {
-  async function request(method, path, { body, query } = {}) {
+export function createApi(getToken, onUnauthorized, onTokenRefresh) {
+  async function request(method, path, { body, query, _retried } = {}) {
     const url = new URL(path, window.location.origin);
     if (query) {
       Object.entries(query).forEach(([key, value]) => {
@@ -42,23 +42,49 @@ export function createApi(getToken) {
       });
     }
 
-    const token = getToken?.();
     const headers = {};
     if (body) headers['Content-Type'] = 'application/json';
-    if (token) headers.Authorization = `Bearer ${token}`;
 
-    const response = await fetch(`${url.pathname}${url.search}`, {
-      method,
-      credentials: 'include',
-      headers,
-      body: body ? JSON.stringify(body) : undefined
-    });
+    let response;
+    try {
+      response = await fetch(`${url.pathname}${url.search}`, {
+        method,
+        credentials: 'include',
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (networkError) {
+      const error = new Error('Server is unreachable. Please check backend connectivity.');
+      error.api = {
+        status: 0,
+        message: 'Server is unreachable. Please check backend connectivity.',
+        error_code: 'SERVER_UNREACHABLE'
+      };
+      throw error;
+    }
 
     const raw = await response.text();
     const payload = parseBodyText(raw);
 
     if (!response.ok) {
       const apiError = toApiError(response.status, payload);
+      const isAuthRoute = path.startsWith('/api/auth/');
+      if (response.status === 401 && !_retried && !isAuthRoute) {
+        try {
+          const refreshed = await request('POST', '/api/auth/refresh', { _retried: true });
+          const nextToken = refreshed?.token;
+          if (nextToken && typeof onTokenRefresh === 'function') {
+            onTokenRefresh(nextToken);
+          }
+          return request(method, path, { body, query, _retried: true });
+        } catch {
+          // fallthrough to unauthorized handling
+        }
+      }
+      // Centralized unauthorized handling keeps session expiry behavior consistent.
+      if (response.status === 401 && typeof onUnauthorized === 'function') {
+        onUnauthorized();
+      }
       const error = new Error(apiError.message);
       error.api = apiError;
       throw error;
@@ -68,7 +94,9 @@ export function createApi(getToken) {
   }
 
   async function createAppointment(form) {
-    // Backend canonical flow: register/reuse patient, then /appointments/book.
+    // Canonical booking flow:
+    // 1) register/reuse patient
+    // 2) book appointment with doctor reference
     let patient;
 
     if (form.patientId) {
@@ -86,12 +114,21 @@ export function createApi(getToken) {
       } catch (registerError) {
         // If patient already exists (unique phone), reuse existing patient record.
         const status = registerError?.api?.status;
-        if (status !== 409) {
+        const message = String(registerError?.api?.message || registerError?.message || '').toLowerCase();
+        const looksLikeDuplicatePatient =
+          status === 409
+          || (status >= 400 && /already|exists|duplicate|unique|constraint|phone/i.test(message));
+
+        if (!looksLikeDuplicatePatient || !form.phoneNumber) {
           throw registerError;
         }
-        patient = await request('GET', '/api/patients/by-phone', {
-          query: { phoneNumber: form.phoneNumber }
-        });
+        try {
+          patient = await request('GET', '/api/patients/by-phone', {
+            query: { phoneNumber: form.phoneNumber }
+          });
+        } catch {
+          throw registerError;
+        }
       }
     }
 
@@ -111,8 +148,12 @@ export function createApi(getToken) {
     logout: () => request('POST', '/api/auth/logout'),
 
     createAppointment,
+    registerPatient: (payload) => request('POST', '/api/patients/register', { body: payload }),
     getAllAppointments: () => request('GET', '/api/appointments'),
+    getDoctorToday: (doctorId) => request('GET', '/api/appointments/doctor/today', { query: { doctorId } }),
     findPatientByPhone: (phoneNumber) => request('GET', '/api/patients/by-phone', { query: { phoneNumber } }),
+    getAllPatients: () => request('GET', '/api/patients'),
+    getPatientById: (id) => request('GET', `/api/patients/${id}`),
     searchPatients: (q) => request('GET', '/api/patients/search', { query: { q } }),
     getDoctors: () => request('GET', '/api/appointments/doctors'),
     bookAppointmentByDoctorRef: (payload) => request('POST', '/api/appointments/book-flex', {
@@ -131,6 +172,7 @@ export function createApi(getToken) {
     searchMedicines: (name) => request('GET', '/api/medicines/search', { query: { name } }),
     getAllMedicines: () => request('GET', '/api/medicines'),
     createMedicine: (payload) => request('POST', '/api/medicines', { body: payload }),
+    updateMedicineStock: (id, stockCount) => request('PUT', `/api/medicines/${id}/stock`, { query: { stockCount } }),
     deleteExpiredMedicine: (id) => request('DELETE', `/api/medicines/expired/${id}`),
     purgeExpiredMedicines: () => request('DELETE', '/api/medicines/expired'),
     createPrescription: (payload) => request('POST', '/api/prescriptions/create', { body: payload }),
@@ -152,8 +194,10 @@ export function createApi(getToken) {
 
 export function getApiErrorMessage(error) {
   if (!error) return 'Unknown error';
-  if (error.api?.error_code) {
-    return `${error.api.error_code}: ${error.api.message}`;
+  const code = error.api?.error_code;
+  const message = error.api?.message || error.message || 'Request failed';
+  if (!code || code === 'HTTP_ERROR' || code === 'SYSTEM_ERROR') {
+    return message;
   }
-  return error.message || 'Request failed';
+  return message;
 }
