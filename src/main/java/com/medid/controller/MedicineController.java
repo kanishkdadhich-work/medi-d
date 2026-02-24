@@ -5,7 +5,9 @@ import com.medid.entity.Medicine;
 import com.medid.exception.ConflictException;
 import com.medid.exception.ValidationException;
 import com.medid.repository.MedicineRepository;
+import com.medid.repository.PrescriptionItemRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,9 +27,12 @@ import java.util.List;
 public class MedicineController {
 
     private final MedicineRepository medicineRepository;
+    private final PrescriptionItemRepository prescriptionItemRepository;
 
-    public MedicineController(MedicineRepository medicineRepository) {
+    public MedicineController(MedicineRepository medicineRepository,
+                              PrescriptionItemRepository prescriptionItemRepository) {
         this.medicineRepository = medicineRepository;
+        this.prescriptionItemRepository = prescriptionItemRepository;
     }
 
     // This is for the Doctor's "Live Search" dropdown
@@ -134,7 +139,15 @@ public class MedicineController {
             ));
         }
 
-        medicineRepository.delete(medicine);
+        if (prescriptionItemRepository.existsByMedicine_MedicineId(id)) {
+            throw new ConflictException("Expired batch is referenced by prescription history. Cannot delete this batch; update stock to 0 or keep for audit.");
+        }
+
+        try {
+            medicineRepository.delete(medicine);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException("Expired batch is referenced by prescription history. Cannot delete this batch; update stock to 0 or keep for audit.");
+        }
         log.debug("Deleted expired medicine medicineId={}", id);
         return ResponseEntity.ok(Map.of("deletedMedicineId", id));
     }

@@ -34,6 +34,7 @@ public interface MedicineRepository extends JpaRepository<Medicine, Long> {
     @Query("""
             SELECT m FROM Medicine m
             WHERE LOWER(m.name) = LOWER(:name)
+              AND (m.expiryDate IS NULL OR m.expiryDate >= CURRENT_DATE)
             ORDER BY
               CASE WHEN m.expiryDate IS NULL THEN 1 ELSE 0 END,
               m.expiryDate ASC,

@@ -71,6 +71,7 @@ Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
 
 ### `patients`
 - `patient_id` (PK)
+- `patient_ref_code` (unique public reference, format `PAT-XXXX`)
 - `full_name`
 - `phone_number` (unique)
 - `gender`
@@ -114,6 +115,7 @@ Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
 - A patient cannot hold multiple active appointments with the same doctor on the same day.
 - Status transitions are restricted (including terminal behavior for `COMPLETED`/`CANCELLED`).
 - Only doctor can manage `UNAVAILABLE` slot lifecycle.
+- Patient selection in UI uses `patient_ref_code` instead of exposing DB primary key.
 
 ### Doctor profile rules
 - For `DOCTOR`, required fields:
@@ -121,6 +123,10 @@ Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
   - `doctor_ref_code` in `MEDID-XX` format
 - Exactly one day type assignment:
   - weekday shift OR weekend shift (not both).
+- Doctor calendar uses configured shift by selected date type:
+  - weekday -> `weekday_shift`
+  - weekend -> `weekend_shift`
+  - shift windows: MORNING `06:00-14:00`, EVENING `14:00-22:00`, NIGHT `22:00-06:00`
 
 ### Prescription & pharmacy rules
 - Prescription creation requires positive quantities.
@@ -128,7 +134,9 @@ Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
 - Pharmacist queue hides diagnosis notes.
 - Dispense is transactional and concurrency-safe.
 - Stock deduction uses FEFO (earliest-expiry-first by medicine name).
+- Expired batches are excluded from dispensing and stock deduction.
 - Duplicate medicine batch with same `name + expiry_date` is blocked; update stock instead.
+- Expired batch deletion is blocked if referenced by prescription history (audit-safe conflict response).
 
 ## 6. API Summary
 
@@ -158,6 +166,7 @@ Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
 - `POST /api/appointments/{id}/complete`
 - `GET /api/appointments/doctors`
 - `GET /api/appointments/doctor/my`
+- `GET /api/appointments/doctor/profile`
 - `GET /api/appointments/doctor/today`
 - `POST /api/appointments/doctor/unavailable`
 - `DELETE /api/appointments/doctor/unavailable`
@@ -203,7 +212,8 @@ Schema is entity-driven with `spring.jpa.hibernate.ddl-auto=update`.
   - slot-level booking and status update modal
 - Doctor workspace:
   - today/completed/future tabs
-  - calendar view with unavailable marking
+  - future tab is view-only (no workspace actions)
+  - calendar view with unavailable marking, aligned to configured doctor shift
   - consultation and prescription drafting
 - Pharmacist workspace:
   - pending queue

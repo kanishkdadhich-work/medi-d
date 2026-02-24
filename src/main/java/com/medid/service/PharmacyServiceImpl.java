@@ -57,11 +57,12 @@ public class PharmacyServiceImpl implements IPharmacyService {
                 throw new ResourceNotFoundException("Medicine not found: " + medicineName);
             }
 
+            // Query already excludes expired batches; only valid stock is counted/dispensed.
             int totalAvailable = batches.stream().mapToInt(m -> m.getStockCount() == null ? 0 : m.getStockCount()).sum();
             if (totalAvailable < requestedQty) {
                 log.debug("Insufficient FEFO stock medicine={}, available={}, required={}",
                         medicineName, totalAvailable, requestedQty);
-                throw new InsufficientStockException("Insufficient stock for: " + medicineName +
+                throw new InsufficientStockException("Insufficient non-expired stock for: " + medicineName +
                         ". Available: " + totalAvailable +
                         ", Required: " + requestedQty);
             }

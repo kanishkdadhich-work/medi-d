@@ -13,6 +13,9 @@ public class Patient {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long patientId;
 
+    @Column(unique = true, length = 32)
+    private String patientRefCode;
+
     @Column(nullable = false)
     @Size(max = 255, message = "fullName cannot exceed 255 characters")
     private String fullName;

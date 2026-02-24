@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ public class PatientServiceImpl implements IPatientService {
     private PatientRepository patientRepo;
 
     @Override
+    @Transactional
     public Patient registerPatient(Patient patient) {
         log.debug("Register patient request fullName={}, phone={}", patient.getFullName(), patient.getPhoneNumber());
         // Defensive limits keep payloads within safe/expected bounds.
@@ -35,6 +37,10 @@ public class PatientServiceImpl implements IPatientService {
             throw new RuntimeException("Invalid Phone Number. Must be 10 digits.");
         }
         Patient saved = patientRepo.save(patient);
+        if (saved.getPatientRefCode() == null || saved.getPatientRefCode().isBlank()) {
+            saved.setPatientRefCode(String.format("PAT-%04d", saved.getPatientId()));
+            saved = patientRepo.save(saved);
+        }
         log.debug("Patient registered patientId={}", saved.getPatientId());
         return saved;
     }
@@ -82,8 +88,12 @@ public class PatientServiceImpl implements IPatientService {
             // Non-numeric query: ignore ID search
         }
 
+        patientRepo.findByPatientRefCodeIgnoreCase(trimmed).ifPresent(p -> unique.putIfAbsent(p.getPatientId(), p));
+
         List<Patient> byName = patientRepo.findTop10ByFullNameContainingIgnoreCaseOrderByFullNameAsc(trimmed);
         byName.forEach(p -> unique.putIfAbsent(p.getPatientId(), p));
+        List<Patient> byRef = patientRepo.findTop10ByPatientRefCodeContainingIgnoreCaseOrderByPatientRefCodeAsc(trimmed);
+        byRef.forEach(p -> unique.putIfAbsent(p.getPatientId(), p));
 
         List<Patient> result = new ArrayList<>(unique.values());
         log.debug("Search patients query={} returned={} records", query, result.size());

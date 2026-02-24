@@ -165,6 +165,7 @@ export function createApi(getToken, onUnauthorized, onTokenRefresh) {
     }),
     updateAppointmentStatus: (id, status) => request('PATCH', `/api/appointments/${id}/status`, { query: { status } }),
     getMyDoctorQueue: () => request('GET', '/api/appointments/doctor/my'),
+    getMyDoctorProfile: () => request('GET', '/api/appointments/doctor/profile'),
     getDoctorQueue: (doctorId) => request('GET', '/api/appointments/doctor/today', { query: { doctorId } }),
     markDoctorUnavailable: (slot) => request('POST', '/api/appointments/doctor/unavailable', { query: { slot: toLocalDateTime(slot) } }),
     clearDoctorUnavailable: (slot) => request('DELETE', '/api/appointments/doctor/unavailable', { query: { slot: toLocalDateTime(slot) } }),

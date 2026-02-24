@@ -608,7 +608,7 @@ export default function ReceptionistDashboard({ api, notify, view = 'booking', r
               className="field"
               value={bookingPatientQuery}
               onChange={(e) => setBookingPatientQuery(e.target.value)}
-              placeholder="Type patient ID or name"
+              placeholder="Type patient Ref ID or name"
               required
             />
             {searchingPatients ? <p className="mt-1 text-xs text-slate-500">Searching patients...</p> : null}
@@ -621,11 +621,11 @@ export default function ReceptionistDashboard({ api, notify, view = 'booking', r
                     className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-50"
                     onClick={() => {
                       setSelectedBookingPatient(patient);
-                      setBookingPatientQuery(`${patient.patientId} - ${patient.fullName}`);
+                      setBookingPatientQuery(`${patient.patientRefCode || `PAT-${String(patient.patientId || '').padStart(4, '0')}`} - ${patient.fullName}`);
                       setBookingPatientSuggestions([]);
                     }}
                   >
-                    <p className="font-medium text-slate-900">#{patient.patientId} - {patient.fullName}</p>
+                    <p className="font-medium text-slate-900">{patient.patientRefCode || `PAT-${String(patient.patientId || '').padStart(4, '0')}`} - {patient.fullName}</p>
                     <p className="text-xs text-slate-500">{patient.phoneNumber || '-'} | {patient.gender || '-'}</p>
                   </button>
                 ))}
@@ -635,7 +635,7 @@ export default function ReceptionistDashboard({ api, notify, view = 'booking', r
 
           {selectedBookingPatient ? (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-              Selected patient: <span className="font-semibold">#{selectedBookingPatient.patientId} - {selectedBookingPatient.fullName}</span>
+              Selected patient: <span className="font-semibold">{selectedBookingPatient.patientRefCode || `PAT-${String(selectedBookingPatient.patientId || '').padStart(4, '0')}`} - {selectedBookingPatient.fullName}</span>
             </div>
           ) : null}
 

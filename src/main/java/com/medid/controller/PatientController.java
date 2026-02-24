@@ -119,6 +119,7 @@ public class PatientController {
     private PatientViewDTO toView(Patient patient, boolean includeMedicalBlob) {
         return new PatientViewDTO(
                 patient.getPatientId(),
+                patient.getPatientRefCode(),
                 patient.getFullName(),
                 patient.getPhoneNumber(),
                 patient.getGender(),

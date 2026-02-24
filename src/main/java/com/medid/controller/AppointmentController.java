@@ -152,6 +152,24 @@ public class AppointmentController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/doctor/profile")
+    @PreAuthorize("hasRole('DOCTOR')")
+    public ResponseEntity<DoctorRefDTO> getMyDoctorProfile(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        if (user.getDoctorId() == null) {
+            throw new RuntimeException("Doctor profile is not linked. Please contact admin.");
+        }
+        return ResponseEntity.ok(new DoctorRefDTO(
+                user.getDoctorId(),
+                user.getId(),
+                user.getUsername(),
+                user.getDoctorRefCode(),
+                user.getSpecialization(),
+                user.getWeekdayShift(),
+                user.getWeekendShift()
+        ));
+    }
+
     @GetMapping("/doctors")
     @PreAuthorize("hasAnyRole('RECEPTIONIST','ADMIN')")
     public ResponseEntity<List<DoctorRefDTO>> getDoctors() {
@@ -219,6 +237,7 @@ public class AppointmentController {
         if (appointment.getPatient() != null) {
             patient = new PatientViewDTO(
                     appointment.getPatient().getPatientId(),
+                    appointment.getPatient().getPatientRefCode(),
                     appointment.getPatient().getFullName(),
                     appointment.getPatient().getPhoneNumber(),
                     appointment.getPatient().getGender(),

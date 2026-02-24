@@ -11,6 +11,8 @@ import java.util.List;
 public interface PatientRepository extends JpaRepository<Patient, Long> {
     // Requirement 1.1: Automatic validation lookup
     Optional<Patient> findByPhoneNumber(String phoneNumber);
+    Optional<Patient> findByPatientRefCodeIgnoreCase(String patientRefCode);
 
     List<Patient> findTop10ByFullNameContainingIgnoreCaseOrderByFullNameAsc(String name);
+    List<Patient> findTop10ByPatientRefCodeContainingIgnoreCaseOrderByPatientRefCodeAsc(String patientRefCode);
 }

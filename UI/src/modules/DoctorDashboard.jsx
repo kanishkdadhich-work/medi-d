@@ -40,13 +40,33 @@ function slotKeyFromIso(value) {
   return `${hours}:${minutes}`;
 }
 
-function buildSlots() {
+function buildSlotsInRange(startHour, endHour) {
   const slots = [];
-  for (let hour = 9; hour < 18; hour += 1) {
+  for (let hour = startHour; hour < endHour; hour += 1) {
     slots.push(`${String(hour).padStart(2, '0')}:00`);
     slots.push(`${String(hour).padStart(2, '0')}:30`);
   }
   return slots;
+}
+
+function buildSlotsForShift(shift) {
+  if (shift === 'MORNING') return buildSlotsInRange(6, 14);
+  if (shift === 'EVENING') return buildSlotsInRange(14, 22);
+  if (shift === 'NIGHT') return [...buildSlotsInRange(22, 24), ...buildSlotsInRange(0, 6)];
+  return [];
+}
+
+function isWeekendDate(dateStr) {
+  if (!dateStr) return false;
+  const day = new Date(`${dateStr}T00:00:00`).getDay();
+  return day === 0 || day === 6;
+}
+
+function shiftLabel(shift) {
+  if (shift === 'MORNING') return 'Morning (06:00 - 14:00)';
+  if (shift === 'EVENING') return 'Evening (14:00 - 22:00)';
+  if (shift === 'NIGHT') return 'Night (22:00 - 06:00)';
+  return 'Shift not assigned';
 }
 
 export default function DoctorDashboard({ api, notify, view = 'today' }) {
@@ -71,13 +91,19 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
 
   const [calendarDate, setCalendarDate] = useState(toDateInput());
   const [calendarAppointments, setCalendarAppointments] = useState([]);
-  const slots = useMemo(buildSlots, []);
+  const [doctorProfile, setDoctorProfile] = useState(null);
 
   const [latestConsultation, setLatestConsultation] = useState(null);
   const [medicalBlobDraft, setMedicalBlobDraft] = useState('');
   const [savingBlob, setSavingBlob] = useState(false);
   const [showMedicineLookup, setShowMedicineLookup] = useState(false);
   const now = new Date();
+  const effectiveShift = useMemo(() => {
+    if (!doctorProfile) return '';
+    const weekend = isWeekendDate(calendarDate);
+    return String(weekend ? doctorProfile.weekendShift : doctorProfile.weekdayShift || '').toUpperCase();
+  }, [doctorProfile, calendarDate]);
+  const slots = useMemo(() => buildSlotsForShift(effectiveShift), [effectiveShift]);
 
   useEffect(() => {
     if (calendarDate < today) {
@@ -136,6 +162,15 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
     }
   };
 
+  const loadDoctorProfile = async () => {
+    try {
+      const profile = await api.getMyDoctorProfile();
+      setDoctorProfile(profile || null);
+    } catch {
+      setDoctorProfile(null);
+    }
+  };
+
   const loadLatestConsultation = async (patientId) => {
     if (!patientId) {
       setLatestConsultation(null);
@@ -184,7 +219,15 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
   }, [view]);
 
   useEffect(() => {
+    if (view === 'future') {
+      setSelectedAppointment(null);
+      setAppointmentTab('summary');
+    }
+  }, [view]);
+
+  useEffect(() => {
     if (view === 'calendar') {
+      loadDoctorProfile();
       loadCalendarAppointments();
       return;
     }
@@ -384,7 +427,9 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="panel-title">Doctor Calendar</h2>
-              <p className="mt-1 text-sm text-slate-500">Mark your slots unavailable or clear unavailable slots.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Mark your slots unavailable or clear unavailable slots. Active shift: {shiftLabel(effectiveShift)}.
+              </p>
             </div>
             <div className="flex gap-2">
               <input type="date" min={today} className="field" value={calendarDate} onChange={(e) => setCalendarDate(e.target.value)} />
@@ -399,6 +444,11 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
             error={queueError}
             empty={false}
           />
+          {!effectiveShift ? (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              No shift configured for this date type. Ask admin to assign weekday/weekend shift.
+            </div>
+          ) : null}
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {slots.map((slot) => {
               const occupied = calendarOccupied.get(slot);
@@ -465,8 +515,18 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
               queue.map((item) => (
                 <button
                   key={item.appointmentId}
-                  onClick={() => { setSelectedAppointment(item); setAppointmentTab('summary'); }}
-                  className={`w-full rounded-xl border p-4 text-left transition ${selectedAppointment?.appointmentId === item.appointmentId ? 'border-med-500 bg-med-50' : 'border-slate-200 hover:border-med-300'}`}
+                  onClick={() => {
+                    if (view === 'future') return;
+                    setSelectedAppointment(item);
+                    setAppointmentTab('summary');
+                  }}
+                  className={`w-full rounded-xl border p-4 text-left transition ${
+                    view === 'future'
+                      ? 'cursor-default border-slate-200 bg-white'
+                      : selectedAppointment?.appointmentId === item.appointmentId
+                        ? 'border-med-500 bg-med-50'
+                        : 'border-slate-200 hover:border-med-300'
+                  }`}
                 >
                   <p className="font-semibold text-slate-900">{item?.patient?.fullName || 'Slot Block'}</p>
                   <p className="text-sm text-slate-500">Phone: {item?.patient?.phoneNumber || '-'}</p>
@@ -482,7 +542,11 @@ export default function DoctorDashboard({ api, notify, view = 'today' }) {
 
         <div className="panel p-5">
           <h3 className="text-base font-semibold text-slate-900">Appointment Workspace</h3>
-          {selectedAppointment ? (
+          {view === 'future' ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+              Future appointments are view-only. Appointment workspace is available for today/completed tabs only.
+            </div>
+          ) : selectedAppointment ? (
             <>
               <div className="mt-3 flex gap-2">
                 <button className={appointmentTab === 'summary' ? 'btn-primary' : 'btn-ghost'} onClick={() => setAppointmentTab('summary')}>Summary</button>
